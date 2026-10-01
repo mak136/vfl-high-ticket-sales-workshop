@@ -107,3 +107,9 @@ if ('IntersectionObserver' in window) {
 }
 
 updateCheckoutSummary();
+
+// Motion stays tied to real moments: the stalled-call sheet arriving, proof
+// surfaces entering the reading path, and a visible response to a format choice.
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  document.documentElement.classList.add('motion-ready');
+}
