@@ -1,8 +1,15 @@
+const TRACKING_CONFIG = window.WORKSHOP_ANALYTICS_CONFIG || {};
+const analytics = window.workshopAnalytics || {
+  trackEvent: () => false,
+  oncePerSession: () => false,
+  submitContact: async () => false,
+  checkoutUrl: url => url
+};
 const WORKSHOP_CONFIG = Object.freeze({
-  currency: 'PKR',
-  basePrice: 5000,
+  currency: TRACKING_CONFIG.CURRENCY || 'PKR',
+  basePrice: TRACKING_CONFIG.TICKET_PRICE || 5000,
   implementationPack: Object.freeze({
-    price: 5000,
+    price: TRACKING_CONFIG.ORDER_BUMP_PRICE || 5000,
     title: 'Add the Workshop Implementation Pack',
     description: 'Add the working frameworks, worksheets, and post-workshop group implementation session.',
     status: 'Final contents will be confirmed before payment opens.'
@@ -44,10 +51,12 @@ function updateCheckoutSummary() {
 }
 
 function selectFormat(format) {
+  const changed = checkoutState.format !== format;
   checkoutState.format = format;
   const radio = document.querySelector(`input[name="format"][value="${format}"]`);
   if (radio) radio.checked = true;
   updateCheckoutSummary();
+  if (changed) analytics.trackEvent('attendance_selected', { attendance_type: format, page_section: 'tickets' });
 }
 
 document.querySelectorAll('input[name="format"]').forEach(input => input.addEventListener('change', () => selectFormat(input.value)));
@@ -60,17 +69,45 @@ document.getElementById('bump-status').textContent = WORKSHOP_CONFIG.implementat
 bump.addEventListener('change', () => {
   checkoutState.implementationPack = bump.checked;
   updateCheckoutSummary();
+  if (bump.checked) analytics.trackEvent('order_bump_selected', {
+    bump_value: WORKSHOP_CONFIG.implementationPack.price,
+    currency: WORKSHOP_CONFIG.currency,
+    product: 'workshop_implementation_pack'
+  });
 });
 
 const attendeeStage = document.getElementById('attendee-stage');
 const checkoutStage = document.getElementById('checkout-stage');
 const seatForm = document.getElementById('seat-form');
+let contactSubmission = Promise.resolve(false);
 
 seatForm.addEventListener('submit', event => {
   event.preventDefault();
   if (!seatForm.reportValidity()) return;
+  const fullName = document.getElementById('name').value.trim();
+  const nameParts = fullName.split(/\s+/);
+  const firstName = nameParts.shift() || '';
+  const lastName = nameParts.join(' ');
+  contactSubmission = analytics.submitContact({
+    full_name: fullName,
+    first_name: firstName,
+    last_name: lastName,
+    email: document.getElementById('email').value.trim(),
+    phone: document.getElementById('phone').value.trim(),
+    attendance_type: checkoutState.format,
+    registration_status: 'Landing Page Lead',
+    payment_status: 'Unpaid',
+    payment_amount: WORKSHOP_CONFIG.basePrice,
+    order_bump: false
+  });
   attendeeStage.hidden = true;
   checkoutStage.hidden = false;
+  analytics.oncePerSession('order_bump_viewed', 'order_bump_viewed', {
+    product: TRACKING_CONFIG.PRODUCT_ID || 'high_ticket_sales_workshop',
+    value: WORKSHOP_CONFIG.implementationPack.price,
+    currency: WORKSHOP_CONFIG.currency,
+    page_section: 'checkout'
+  });
   updateCheckoutSummary();
   checkoutStage.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'nearest' });
 });
@@ -81,7 +118,47 @@ document.getElementById('edit-details').addEventListener('click', () => {
   document.getElementById('name').focus();
 });
 
-document.getElementById('payment-button').addEventListener('click', () => {
+document.getElementById('payment-button').addEventListener('click', async () => {
+  const button = document.getElementById('payment-button');
+  const total = WORKSHOP_CONFIG.basePrice + (checkoutState.implementationPack ? WORKSHOP_CONFIG.implementationPack.price : 0);
+  const checkoutUrl = TRACKING_CONFIG.CHECKOUT_URL;
+  if (checkoutUrl) {
+    button.disabled = true;
+    analytics.trackEvent('checkout_started', {
+      value: total,
+      currency: WORKSHOP_CONFIG.currency,
+      product: TRACKING_CONFIG.PRODUCT_ID || 'high_ticket_sales_workshop',
+      attendance_type: checkoutState.format,
+      order_bump: checkoutState.implementationPack
+    });
+    const fullName = document.getElementById('name').value.trim();
+    const nameParts = fullName.split(/\s+/);
+    const firstName = nameParts.shift() || '';
+    const lastName = nameParts.join(' ');
+    const updateContact = analytics.submitContact({
+      full_name: fullName,
+      first_name: firstName,
+      last_name: lastName,
+      email: document.getElementById('email').value.trim(),
+      phone: document.getElementById('phone').value.trim(),
+      attendance_type: checkoutState.format,
+      registration_status: 'Checkout Started',
+      payment_status: 'Unpaid',
+      payment_amount: total,
+      order_bump: checkoutState.implementationPack
+    }, { trackSubmission: false });
+    await Promise.race([Promise.allSettled([contactSubmission, updateContact]), new Promise(resolve => setTimeout(resolve, 900))]);
+    window.location.assign(analytics.checkoutUrl(checkoutUrl, {
+      ...analytics.attribution
+    }, {
+      attendance_type: checkoutState.format,
+      product: TRACKING_CONFIG.PRODUCT_ID || 'high_ticket_sales_workshop',
+      value: total,
+      currency: WORKSHOP_CONFIG.currency,
+      order_bump: checkoutState.implementationPack
+    }));
+    return;
+  }
   const preview = document.getElementById('payment-preview');
   preview.hidden = false;
   preview.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'nearest' });
