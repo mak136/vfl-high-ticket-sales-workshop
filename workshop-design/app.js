@@ -81,6 +81,43 @@ const checkoutStage = document.getElementById('checkout-stage');
 const seatForm = document.getElementById('seat-form');
 let contactSubmission = Promise.resolve(false);
 
+const turnstileSiteKey = TRACKING_CONFIG.TURNSTILE_SITE_KEY;
+const reserveButton = seatForm.querySelector('button[type="submit"]');
+let turnstileWidgetId;
+let turnstileBox = document.getElementById('turnstile-box');
+let turnstileToken = document.getElementById('turnstile-token');
+if (!turnstileBox) {
+  turnstileBox = document.createElement('div');
+  turnstileBox.id = 'turnstile-box';
+  reserveButton.before(turnstileBox);
+}
+if (!turnstileToken) {
+  turnstileToken = document.createElement('input');
+  turnstileToken.id = 'turnstile-token';
+  turnstileToken.type = 'hidden';
+  seatForm.appendChild(turnstileToken);
+}
+if (turnstileSiteKey) {
+  turnstileBox.hidden = false;
+  reserveButton.disabled = true;
+  const turnstileScript = document.createElement('script');
+  turnstileScript.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+  turnstileScript.async = true;
+  turnstileScript.defer = true;
+  turnstileScript.onload = () => {
+    if (!window.turnstile) return;
+    turnstileWidgetId = window.turnstile.render(turnstileBox, {
+      sitekey: turnstileSiteKey,
+      action: 'registration',
+      callback: token => { turnstileToken.value = token; reserveButton.disabled = false; },
+      'expired-callback': () => { turnstileToken.value = ''; reserveButton.disabled = true; },
+      'error-callback': () => { turnstileToken.value = ''; reserveButton.disabled = true; }
+    });
+  };
+  turnstileScript.onerror = () => { reserveButton.disabled = true; };
+  document.head.appendChild(turnstileScript);
+}
+
 seatForm.addEventListener('submit', event => {
   event.preventDefault();
   if (!seatForm.reportValidity()) return;
@@ -99,6 +136,14 @@ seatForm.addEventListener('submit', event => {
     payment_status: 'Unpaid',
     payment_amount: WORKSHOP_CONFIG.basePrice,
     order_bump: false
+  }).then(result => {
+    // Siteverify consumes a token even if the CRM request later fails.
+    if (turnstileSiteKey && window.turnstile && turnstileWidgetId !== undefined) {
+      turnstileToken.value = '';
+      window.turnstile.reset(turnstileWidgetId);
+      reserveButton.disabled = true;
+    }
+    return result;
   });
   attendeeStage.hidden = true;
   checkoutStage.hidden = false;
@@ -135,19 +180,9 @@ document.getElementById('payment-button').addEventListener('click', async () => 
     const nameParts = fullName.split(/\s+/);
     const firstName = nameParts.shift() || '';
     const lastName = nameParts.join(' ');
-    const updateContact = analytics.submitContact({
-      full_name: fullName,
-      first_name: firstName,
-      last_name: lastName,
-      email: document.getElementById('email').value.trim(),
-      phone: document.getElementById('phone').value.trim(),
-      attendance_type: checkoutState.format,
-      registration_status: 'Checkout Started',
-      payment_status: 'Unpaid',
-      payment_amount: total,
-      order_bump: checkoutState.implementationPack
-    }, { trackSubmission: false });
-    await Promise.race([Promise.allSettled([contactSubmission, updateContact]), new Promise(resolve => setTimeout(resolve, 900))]);
+    // Turnstile tokens are single-use. The contact is submitted once at the attendee step;
+    // checkout_started remains an analytics event and does not resubmit the same token.
+    await Promise.race([contactSubmission, new Promise(resolve => setTimeout(resolve, 900))]);
     window.location.assign(analytics.checkoutUrl(checkoutUrl, {
       ...analytics.attribution
     }, {

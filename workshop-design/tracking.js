@@ -7,6 +7,8 @@
     GTM_CONTAINER_ID: '',
     // Same-origin proxy. The HighLevel webhook URL stays in Netlify environment variables.
     HIGHLEVEL_WEBHOOK_OR_FORM_ENDPOINT: '/.netlify/functions/workshop-contact',
+    // Public site key only. Keep the matching secret in Netlify environment variables.
+    TURNSTILE_SITE_KEY: '',
     CHECKOUT_URL: '',
     PRODUCT_ID: 'high_ticket_sales_workshop',
     PRODUCT_NAME: 'High-Ticket Sales Workshop',
@@ -233,6 +235,7 @@
       if (!config.HIGHLEVEL_WEBHOOK_OR_FORM_ENDPOINT) return false;
       const body = {
         ...contact,
+        turnstile_token: page && page.getElementById('turnstile-token') ? page.getElementById('turnstile-token').value : '',
         workshop_name: config.PRODUCT_NAME,
         workshop_date: config.WORKSHOP_DATE,
         registration_status: contact.registration_status || 'Landing Page Lead',

@@ -20,8 +20,27 @@ function response(statusCode, body) {
 exports.handler = async function handler(event) {
   if (event.httpMethod !== 'POST') return response(405, { ok: false, error: 'Method not allowed.' });
 
+  const headers = Object.fromEntries(Object.entries(event.headers || {}).map(([key, value]) => [key.toLowerCase(), value]));
+  const host = headers.host;
+  const origin = headers.origin;
+  const forwardedProto = (headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+  const isLocal = host && /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
+  let parsedOrigin;
+  try { parsedOrigin = new URL(origin); } catch (_) { /* Missing or invalid Origin is rejected below. */ }
+  if (!host || !parsedOrigin || parsedOrigin.host !== host || parsedOrigin.origin !== origin ||
+      !(forwardedProto === 'https' || (isLocal && parsedOrigin.protocol === 'http:'))) {
+    return response(403, { ok: false, error: 'Request origin is not allowed.' });
+  }
+
+  if (!/^application\/json(?:\s*;|\s*$)/i.test(headers['content-type'] || '')) {
+    return response(415, { ok: false, error: 'JSON content is required.' });
+  }
+
   const destination = process.env.HIGHLEVEL_WEBHOOK_OR_FORM_ENDPOINT;
   if (!destination) return response(503, { ok: false, error: 'Registration contact endpoint is not configured.' });
+
+  const turnstileSecret = process.env.TURNSTILE_SECRET_KEY;
+  if (!turnstileSecret) return response(503, { ok: false, error: 'Registration protection is not configured.' });
 
   let endpoint;
   try {
@@ -40,6 +59,33 @@ exports.handler = async function handler(event) {
     return response(400, { ok: false, error: 'Invalid registration data.' });
   }
 
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return response(400, { ok: false, error: 'Invalid registration data.' });
+  }
+
+  const token = typeof data.turnstile_token === 'string' ? data.turnstile_token.trim().slice(0, 2048) : '';
+  if (!token) return response(400, { ok: false, error: 'Complete the security check and try again.' });
+
+  const verifyController = new AbortController();
+  const verifyTimeout = setTimeout(() => verifyController.abort(), 5000);
+  try {
+    const verification = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ secret: turnstileSecret, response: token, ...(headers['x-nf-client-connection-ip'] ? { remoteip: headers['x-nf-client-connection-ip'] } : {}) }),
+      signal: verifyController.signal
+    });
+    if (!verification.ok) return response(503, { ok: false, error: 'Security check is temporarily unavailable.' });
+    const result = await verification.json();
+    if (!result.success || result.hostname !== host || result.action !== 'registration') {
+      return response(400, { ok: false, error: 'Security check failed. Please try again.' });
+    }
+  } catch (_) {
+    return response(503, { ok: false, error: 'Security check is temporarily unavailable.' });
+  } finally {
+    clearTimeout(verifyTimeout);
+  }
+
   const email = typeof data.email === 'string' ? data.email.trim().slice(0, 254) : '';
   const phone = typeof data.phone === 'string' ? data.phone.trim().slice(0, 40) : '';
   const firstName = typeof data.first_name === 'string' ? data.first_name.trim().slice(0, 80) : '';
@@ -48,25 +94,26 @@ exports.handler = async function handler(event) {
     return response(400, { ok: false, error: 'Name, valid email, phone, and attendance choice are required.' });
   }
 
-  const orderBump = Boolean(data.order_bump);
-  const status = data.registration_status === 'Checkout Started' ? 'Checkout Started' : 'Landing Page Lead';
+  // These values are lead metadata only; payment and order confirmation are server/provider-owned.
+  // This endpoint records the initial lead only; checkout selections are not trusted here.
+  const orderBump = false;
   const payload = {
     first_name: firstName,
-    last_name: String(data.last_name || '').trim().slice(0, 100),
+    last_name: typeof data.last_name === 'string' ? data.last_name.trim().slice(0, 100) : '',
     email,
     phone,
     workshop_name: 'High-Ticket Sales Workshop',
     workshop_date: '2026-10-24',
     attendance_type: attendance,
-    registration_status: status,
+    registration_status: 'Landing Page Lead',
     payment_status: 'Unpaid',
-    payment_amount: 5000 + (orderBump ? 5000 : 0),
+    payment_amount: 5000,
     order_bump: orderBump
   };
   const attribution = data.attribution && typeof data.attribution === 'object' ? data.attribution : {};
   for (const field of ATTRIBUTION_FIELDS) {
     const value = attribution[field];
-    if (typeof value === 'string') payload[field] = value.slice(0, 1000);
+    if (typeof value === 'string') payload[field] = value.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 300);
   }
 
   const controller = new AbortController();
