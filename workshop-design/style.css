@@ -408,3 +408,33 @@
   .footer .social-links{gap:12px 20px}
   .footer-meta{display:grid;gap:10px;margin-top:20px;font-size:10px}
 }
+
+/* Proof screenshots stay readable at every breakpoint; the full image opens on tap. */
+.community-proof-image{display:block;background:#11120f;line-height:0}
+.community-proof-card img{display:block;width:100%;height:420px;object-fit:contain;object-position:center;background:#11120f}
+.community-proof-card:nth-child(2) img{object-position:center}
+.community-proof-image:focus-visible{outline-color:var(--accent);outline-offset:-4px}
+
+/* The close keeps its own structure on a phone instead of inheriting desktop footer rules. */
+@media(max-width:767px){
+  .footer{padding:0;margin:0;background:#3b4335}
+  .footer:before{height:5px}
+  .footer-wrap{padding:31px 0 calc(96px + env(safe-area-inset-bottom))}
+  .footer-top{display:grid;gap:0}
+  .footer .brand{font-size:31px;align-items:flex-start}
+  .footer .brand-caption{font-size:10px;line-height:1.35;letter-spacing:.06em}
+  .footer-line{font-size:25px;margin-top:12px}
+  .footer-cta{width:100%;margin-top:24px;min-height:50px;padding:14px 16px}
+  .footer-bottom{display:grid;gap:18px;margin-top:25px;padding-top:20px}
+  .footer .social-links{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}
+  .footer .social-links a{min-height:38px;display:grid;place-items:center;border:1px solid #707967;font-size:10px}
+  .footer-meta{display:grid;gap:9px;margin:0;max-width:none;font-size:10px}
+}
+
+@media(max-width:767px){
+  .community-proof-grid{grid-template-columns:1fr;gap:18px}
+  .community-proof-card{display:block;min-height:0}
+  .community-proof-card img{height:auto;max-height:520px;object-fit:contain}
+  .community-proof-card figcaption{min-height:0;padding:17px 18px;border:0;border-top:1px solid #393b34}
+  .community-proof-card strong{font-size:25px}
+}
