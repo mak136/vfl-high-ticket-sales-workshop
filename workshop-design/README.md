@@ -2,7 +2,7 @@
 
 Open `index.html` to view the page. Keep `style.css`, `app.js`, and `assets/` beside it. No build step is needed.
 
-The page now uses Afroze Khan, 24 October 2026, one PKR 5,000 workshop ticket, the confirmed Karachi ticket disclosure, bank transfer and PayFast card payment, and `billing@revenueincarnate.com` as the proposed support inbox. It explains Vision, Friction, Lift and the intended workshop experience. Real photography documents a live high-ticket sales session, audience participation, Afroze's event presence, and his Connected Pakistan award.
+The page now uses Afroze Khan, 24 October 2026, one PKR 5,000 workshop ticket, the confirmed Karachi ticket disclosure, bank transfer and PayFast card payment, and `billing@revenueincarnate.com` as the proposed support inbox. It explains VFL and the intended workshop experience. Real photography documents a live high-ticket sales session, audience participation, Afroze's event presence, and his Connected Pakistan award.
 
 The checkout preview preserves the selected attendance preference and calculates PKR 5,000 for the workshop or PKR 10,000 when the optional Implementation Pack is selected. Edit the centralized configuration in `tracking.js` and the pack details in `app.js` when those details are finalized. The payment button remains a preview until a real checkout URL and verified provider flow are configured.
 
