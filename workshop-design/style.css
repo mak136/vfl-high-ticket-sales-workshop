@@ -300,7 +300,7 @@
 @media(max-width:767px){
   .preview-note{display:none}
   .hero{padding-top:24px;padding-bottom:34px;gap:24px}
-  .hero-support,.audience-strip,.insight,.conversation-example{display:none}
+  .audience-strip,.insight,.conversation-example{display:none}
   .hero h1{font-size:clamp(43px,12.3vw,52px)}
   .hero-lead{font-size:17px;max-width:310px;margin-top:18px}
   .hero .event-meta{margin-top:15px}
@@ -309,36 +309,25 @@
   .proof-strip>div{min-height:74px;padding:12px 10px}
   .proof-strip strong{font-size:21px}
   .section{padding-block:48px}
-  .recognition .consequences article:last-child{display:none}
   .recognition .section-heading>p{max-width:310px}
   .vfl-method article{padding-block:18px 19px}
-  .vfl-method article>p:not(.method-question){display:none}
   .method-question{font-size:14px;margin-top:8px}
   .method-result{margin-top:12px;padding-top:11px}
   .method-proof{margin-top:22px}
   .method-close{margin-top:20px}
-  .method-close p{display:none}
   .experience .section-heading>p{max-width:310px}
-  .experience-content>.pending-label,.experience-content>.small-copy{display:none}
-  .workshop-actions span:nth-child(n+4){display:none}
-  .agenda-row p{display:none}
+  .experience-content>.pending-label{display:none}
   .agenda-row{padding-block:13px}
-  .session-gallery{display:none}
   .outcome-list article:nth-child(n+4),.fit{display:none}
   .outcome-list{gap:0}
   .outcome-list article{padding-block:15px}
   .outcome-list p{display:none}
-  .creator-copy>p:nth-of-type(2),.creator-copy>.creator-support{display:none}
   .creator-photo{min-height:340px}
   .award-proof{margin-top:18px}
-  .tickets .section-heading>p{display:none}
   .offer-main h3{font-size:34px}
-  .offer-includes li:nth-child(4){display:none}
   .offer-detail{margin-top:8px}
   .after-payment{padding-top:27px}
-  .after-payment li:nth-child(3){display:none}
   .faq-section{padding-block:44px}
-  .registration-copy>p.registration-policy{display:none}
 }
 
 /* A small authored entrance for the conversation sheet, then proof appears as proof. */
@@ -464,3 +453,122 @@
 .recognition-copy{max-width:690px;margin-left:auto;border-top:1px solid var(--line);padding-top:26px;display:grid;gap:20px;color:var(--muted);font-size:17px;line-height:1.65}
 .recognition-copy p:first-child{color:var(--paper);font-size:22px;line-height:1.3}
 @media(max-width:767px){.recognition-copy{margin-left:0;padding-top:20px;gap:16px;font-size:15px;line-height:1.6}.recognition-copy p:first-child{font-size:19px}}
+
+/* The problem reads as one continuous thought on desktop and phone. */
+.mobile-swipe-hint{display:none}
+.recognition{padding-block:80px 88px;max-width:850px}
+.recognition .section-heading{display:block;max-width:840px;margin-bottom:26px}
+.recognition .section-heading h2{max-width:840px}
+.recognition .section-heading>p{max-width:700px;margin-top:23px;font-size:17px;line-height:1.65}
+.recognition-copy{max-width:700px;margin:0;padding-top:23px;gap:16px;font-size:16px;line-height:1.65}
+.recognition-copy p:first-child{font-size:19px}
+
+/* One aligned visual rail makes the portrait and recognition read together. */
+.creator-grid{grid-template-columns:minmax(0,.9fr) minmax(0,1.15fr);align-items:start}
+.creator-visuals{display:grid;gap:12px;min-width:0}
+.creator-visuals .creator-photo{min-height:0;height:430px}
+.creator-visuals .award-proof{grid-template-columns:170px minmax(0,1fr);margin:0;min-height:145px}
+.creator-visuals .award-proof img{width:170px;height:145px;object-fit:contain;background:#171815}
+.creator-visuals .award-proof figcaption{justify-content:center;padding:16px 20px}
+.creator-visuals .award-proof strong{font-size:23px}
+@media(min-width:768px) and (max-width:1050px){
+  .footer-meta{grid-template-columns:minmax(150px,.9fr) minmax(230px,1.3fr) minmax(170px,.9fr);column-gap:16px}
+}
+
+@media(max-width:767px){
+  .wrap{width:calc(100% - 36px)}
+  .section{padding-block:44px}
+  .section-heading{margin-bottom:24px}
+  .section-heading h2{font-size:clamp(32px,8.8vw,39px);line-height:1.04}
+  .section-heading>p{max-width:36ch;margin-top:12px;font-size:14px;line-height:1.55}
+  .hero{padding-top:26px;padding-bottom:38px;gap:22px}
+  .hero h1{font-size:clamp(42px,11.8vw,50px);line-height:.96}
+  .hero-lead{font-size:16px;line-height:1.42;margin-top:18px}
+  .hero-support{display:block;font-size:13px;line-height:1.55;max-width:39ch;margin-top:10px}
+  .hero-logistics{font-size:11px;line-height:1.35}
+  .call-art{min-height:0;padding:16px 18px 18px;margin:2px 4px 4px}
+  .quote-art p{font-size:clamp(45px,13.5vw,55px);line-height:.91}
+  .call-footer{margin-top:13px}
+  .orange-tab{bottom:82px;right:-8px;font-size:9px;padding:6px 8px}
+  .call-timeline{margin-top:15px}
+  .illustration-label{margin-top:11px}
+  .recognition{padding-block:44px 48px;max-width:none}
+  .recognition .section-heading{margin-bottom:20px}
+  .recognition .section-heading h2{font-size:clamp(35px,9.2vw,41px)}
+  .recognition .section-heading>p{max-width:39ch;margin-top:15px;font-size:14px;line-height:1.55}
+  .recognition-copy{max-width:none;margin:0;padding-top:17px;gap:12px;font-size:14px;line-height:1.55}
+  .recognition-copy p:first-child{font-size:16px}
+  .vfl-method{gap:0}
+  .vfl-method article{padding:18px 0 18px 58px}
+  .method-letter{top:19px;width:44px;font-size:48px}
+  .vfl-method h3{font-size:23px}
+  .method-question{font-size:15px;margin-top:7px}
+  .vfl-method article>p:not(.method-question){display:block;font-size:13px;line-height:1.5;min-height:0;margin-top:7px}
+  .method-result{margin-top:11px;padding-top:10px}
+  .method-proof{grid-template-columns:1fr 1.1fr;min-height:0;margin-top:22px}
+  .method-proof img{height:190px;object-position:center 43%}
+  .method-proof figcaption{padding:16px;justify-content:center}
+  .method-proof figcaption strong{font-size:23px}
+  .method-proof figcaption span{font-size:11px;line-height:1.4;margin-top:7px}
+  .method-close{margin-top:20px;gap:16px}
+  .method-close p{display:block;font-size:13px;line-height:1.5}
+  .experience-grid{gap:20px}
+  .experience-content{order:1}
+  .workshop-photo{order:2;min-height:230px}
+  .experience-content>.small-copy{display:block;font-size:12px;line-height:1.5}
+  .workshop-actions{gap:7px;margin:17px 0}
+  .workshop-actions span{display:inline-block;font-size:11px;line-height:1.3;padding:8px 9px}
+  .agenda-row{padding-block:13px}
+  .agenda-row h3{font-size:18px}
+  .agenda-row p{display:block;font-size:12px;line-height:1.5;margin-top:5px}
+  .session-gallery{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(220px,74%);grid-template-columns:none;gap:11px;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-inline:contain;scrollbar-width:thin;margin-top:16px;padding-bottom:8px}
+  .mobile-swipe-hint{display:block;font-size:10px;line-height:1.3;letter-spacing:.02em;color:#646956;margin-top:16px}
+  .community-proof-heading .mobile-swipe-hint{font-size:10px;margin-top:12px}
+  .session-gallery figure{grid-template-rows:148px auto;scroll-snap-align:start}
+  .session-gallery img{height:148px}
+  .session-gallery figcaption{padding:13px 14px}
+  .session-gallery strong{font-size:18px}
+  .session-gallery span{font-size:11px;line-height:1.35;margin-top:4px}
+  .community-proof{padding-block:44px}
+  .community-proof-heading{margin-bottom:20px}
+  .community-proof-heading h2{font-size:clamp(32px,8.8vw,39px);line-height:1.04}
+  .community-proof-heading p{font-size:13px;margin-top:10px}
+  .community-proof-grid{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(230px,78%);grid-template-columns:none;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-inline:contain;scrollbar-width:thin;padding-bottom:9px}
+  .community-proof-card{display:flex;flex-direction:column;min-height:0;scroll-snap-align:start}
+  .community-proof-image{height:170px;overflow:hidden}
+  .community-proof-card img{width:100%;height:170px;max-height:none;object-fit:cover;object-position:center top}
+  .community-proof-card figcaption{min-height:74px;padding:12px 14px}
+  .community-proof-card strong{font-size:20px;line-height:1.1}
+  .community-proof-card span{font-size:11px;line-height:1.4;margin-top:4px}
+  .community-proof-note{font-size:11px;line-height:1.5;margin-top:13px}
+  .creator-section{padding-block:44px}
+  .creator-grid{grid-template-columns:1fr;gap:20px}
+  .creator-visuals{grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);gap:8px;height:240px}
+  .creator-visuals .creator-photo{min-height:0;height:240px}
+  .creator-photo>img{object-position:center 32%}
+  .creator-visuals .creator-photo figcaption{padding:9px 11px;font-size:10px;line-height:1.2}
+  .creator-visuals .creator-photo figcaption span{width:auto}
+  .creator-visuals .award-proof{display:flex;flex-direction:column;min-height:0;height:240px;margin:0}
+  .creator-visuals .award-proof img{width:100%;height:127px;object-fit:contain;object-position:center;background:#171815}
+  .creator-visuals .award-proof figcaption{flex:1;justify-content:center;padding:9px 10px}
+  .creator-visuals .award-proof strong{font-size:16px;line-height:1.05}
+  .creator-visuals .award-proof span{font-size:10px;margin-top:5px}
+  .creator-copy h2{font-size:clamp(35px,9vw,40px)}
+  .creator-copy>p{font-size:14px;line-height:1.55;margin-top:13px}
+  .creator-copy>p:nth-of-type(2),.creator-copy>.creator-support{display:block}
+  .credentials{margin-top:18px;padding-block:15px}
+  .credentials strong{font-size:44px}
+  .tickets .section-heading>p{display:block}
+  .offer-includes li:nth-child(4){display:list-item}
+  .after-payment li:nth-child(3){display:flex}
+  .registration-copy>p.registration-policy{display:block}
+}
+@media(max-width:360px){
+  .hero h1{font-size:41px}
+  .method-proof{grid-template-columns:1fr}
+  .method-proof img{height:175px}
+  .method-proof figcaption{padding:15px}
+  .creator-visuals{height:220px}
+  .creator-visuals .creator-photo,.creator-visuals .award-proof{height:220px}
+  .creator-visuals .award-proof img{height:110px}
+}
