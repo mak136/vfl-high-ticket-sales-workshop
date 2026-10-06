@@ -200,16 +200,19 @@ const mobileSeat = document.getElementById('mobile-seat');
 if ('IntersectionObserver' in window) {
   let heroVisible = true;
   let registrationVisible = false;
-  const updateMobileSeat = () => mobileSeat.classList.toggle('hidden', heroVisible || registrationVisible);
+  let footerVisible = false;
+  const updateMobileSeat = () => mobileSeat.classList.toggle('hidden', heroVisible || registrationVisible || footerVisible);
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => {
       if (entry.target.classList.contains('hero')) heroVisible = entry.isIntersecting;
       if (entry.target.id === 'registration') registrationVisible = entry.isIntersecting;
+      if (entry.target.id === 'footer') footerVisible = entry.isIntersecting;
     });
     updateMobileSeat();
   }, { threshold: .08 });
   observer.observe(document.querySelector('.hero'));
   observer.observe(document.getElementById('registration'));
+  observer.observe(document.getElementById('footer'));
   updateMobileSeat();
 }
 
