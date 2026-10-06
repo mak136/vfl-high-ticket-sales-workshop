@@ -1,0 +1,11 @@
+{
+  "name": "revenue-incarnate-workshop",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^11.1.3"
+  }
+}

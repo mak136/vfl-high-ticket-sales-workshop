@@ -18,6 +18,23 @@ const WORKSHOP_CONFIG = Object.freeze({
 
 const money = value => `${WORKSHOP_CONFIG.currency} ${value.toLocaleString('en-PK')}`;
 const checkoutState = { format: 'online', implementationPack: false };
+const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
+
+function playMotion(element, keyframes, options = {}) {
+  if (!element || motionPreference.matches || typeof element.animate !== 'function') return;
+  element.animate(keyframes, {
+    duration: 220,
+    easing: 'cubic-bezier(.16,1,.3,1)',
+    ...options
+  });
+}
+
+function acknowledgeSelection(element) {
+  playMotion(element, [
+    { transform: 'scale(.975)' },
+    { transform: 'scale(1)' }
+  ], { duration: 180 });
+}
 
 const diagnoses = {
   think: ['What is the buyer still unsure about?', 'The offer may be clear, but the outcome, risk, or decision itself may not be. Another follow-up won’t tell you which.'],
@@ -31,6 +48,11 @@ document.querySelectorAll('[data-objection]').forEach(button => button.addEventL
   const [title, copy] = diagnoses[button.dataset.objection];
   document.getElementById('diagnosis-title').textContent = title;
   document.getElementById('diagnosis-copy').textContent = copy;
+  acknowledgeSelection(button);
+  playMotion(document.querySelector('.diagnosis'), [
+    { opacity: .55, transform: 'translateY(4px)' },
+    { opacity: 1, transform: 'translateY(0)' }
+  ]);
 }));
 
 function formatName(format) {
@@ -56,6 +78,14 @@ function selectFormat(format) {
   const radio = document.querySelector(`input[name="format"][value="${format}"]`);
   if (radio) radio.checked = true;
   updateCheckoutSummary();
+  if (changed) {
+    acknowledgeSelection(document.querySelector(`[data-format-select="${format}"]`));
+    acknowledgeSelection(document.querySelector(`input[name="format"][value="${format}"] + span`));
+    playMotion(document.querySelector('.order-line'), [
+      { opacity: .62, transform: 'translateY(3px)' },
+      { opacity: 1, transform: 'translateY(0)' }
+    ]);
+  }
   if (changed) analytics.trackEvent('attendance_selected', { attendance_type: format, page_section: 'tickets' });
 }
 
@@ -147,6 +177,10 @@ seatForm.addEventListener('submit', event => {
   });
   attendeeStage.hidden = true;
   checkoutStage.hidden = false;
+  playMotion(checkoutStage, [
+    { opacity: .35, transform: 'translateY(10px)' },
+    { opacity: 1, transform: 'translateY(0)' }
+  ], { duration: 320 });
   analytics.oncePerSession('order_bump_viewed', 'order_bump_viewed', {
     product: TRACKING_CONFIG.PRODUCT_ID || 'high_ticket_sales_workshop',
     value: WORKSHOP_CONFIG.implementationPack.price,
@@ -160,6 +194,10 @@ seatForm.addEventListener('submit', event => {
 document.getElementById('edit-details').addEventListener('click', () => {
   checkoutStage.hidden = true;
   attendeeStage.hidden = false;
+  playMotion(attendeeStage, [
+    { opacity: .45, transform: 'translateY(-6px)' },
+    { opacity: 1, transform: 'translateY(0)' }
+  ]);
   document.getElementById('name').focus();
 });
 
@@ -222,6 +260,81 @@ updateCheckoutSummary();
 
 // Motion stays tied to real moments: the stalled-call sheet arriving, proof
 // surfaces entering the reading path, and a visible response to a format choice.
-if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+if (!motionPreference.matches) {
   document.documentElement.classList.add('motion-ready');
+}
+
+// A few section-level reveals establish reading rhythm without turning every
+// paragraph into an animation. Content remains visible unless JavaScript has
+// deliberately prepared an offscreen element for its one-time entrance.
+if ('IntersectionObserver' in window && !motionPreference.matches) {
+  const revealTargets = [
+    document.querySelector('.insight-grid'),
+    document.querySelector('#method > .section-heading'),
+    document.querySelector('.experience-grid'),
+    document.querySelector('.community-proof-heading'),
+    document.getElementById('registration')
+  ].filter(Boolean);
+  const revealObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add('is-revealed');
+      revealObserver.unobserve(entry.target);
+    });
+  }, { rootMargin: '0px 0px -12% 0px', threshold: .08 });
+
+  revealTargets.forEach(target => {
+    const rect = target.getBoundingClientRect();
+    if (rect.top < window.innerHeight * .92) {
+      target.classList.add('is-revealed');
+      return;
+    }
+    target.classList.add('motion-reveal');
+    revealObserver.observe(target);
+  });
+}
+
+// As the conversation sheet moves through the viewport, let its quote drift
+// slightly in response. This keeps the visual tied to the act of revisiting a
+// sales conversation, without a constant shake or work while it is offscreen.
+const quoteArt = document.querySelector('.quote-art');
+if (quoteArt && 'IntersectionObserver' in window && !motionPreference.matches) {
+  let quoteInView = false;
+  let quoteFrame = 0;
+  const resetQuoteDrift = () => {
+    quoteArt.style.removeProperty('--quote-drift-y');
+    quoteArt.style.removeProperty('--quote-drift-angle');
+  };
+  const updateQuoteDrift = () => {
+    quoteFrame = 0;
+    if (!quoteInView || motionPreference.matches) return;
+    const rect = quoteArt.getBoundingClientRect();
+    const offset = (window.innerHeight * 0.5 - (rect.top + rect.height * 0.5)) / (window.innerHeight * 0.8);
+    const progress = Math.max(-1, Math.min(1, offset));
+    const isPhone = matchMedia('(max-width: 767px)').matches;
+    quoteArt.style.setProperty('--quote-drift-y', `${(progress * (isPhone ? -3 : -5)).toFixed(2)}px`);
+    quoteArt.style.setProperty('--quote-drift-angle', `${(progress * (isPhone ? .25 : .45)).toFixed(2)}deg`);
+  };
+  const scheduleQuoteDrift = () => {
+    if (!quoteFrame && quoteInView && !motionPreference.matches) {
+      quoteFrame = requestAnimationFrame(updateQuoteDrift);
+    }
+  };
+  const quoteObserver = new IntersectionObserver(([entry]) => {
+    quoteInView = entry.isIntersecting;
+    quoteArt.style.willChange = quoteInView && !motionPreference.matches ? 'translate, rotate' : '';
+    if (quoteInView && !motionPreference.matches) scheduleQuoteDrift();
+    else resetQuoteDrift();
+  }, { rootMargin: '80px 0px' });
+  quoteObserver.observe(quoteArt);
+  window.addEventListener('scroll', scheduleQuoteDrift, { passive: true });
+  window.addEventListener('resize', scheduleQuoteDrift, { passive: true });
+  motionPreference.addEventListener('change', event => {
+    if (event.matches) {
+      quoteArt.style.willChange = '';
+      resetQuoteDrift();
+    } else {
+      scheduleQuoteDrift();
+    }
+  });
 }
