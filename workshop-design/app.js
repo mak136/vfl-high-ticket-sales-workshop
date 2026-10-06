@@ -2,22 +2,17 @@ const TRACKING_CONFIG = window.WORKSHOP_ANALYTICS_CONFIG || {};
 const analytics = window.workshopAnalytics || {
   trackEvent: () => false,
   oncePerSession: () => false,
-  submitContact: async () => false,
+  submitContact: async () => ({ ok: false }),
+  submitCheckoutStart: async () => false,
   checkoutUrl: url => url
 };
 const WORKSHOP_CONFIG = Object.freeze({
   currency: TRACKING_CONFIG.CURRENCY || 'PKR',
-  basePrice: TRACKING_CONFIG.TICKET_PRICE || 5000,
-  implementationPack: Object.freeze({
-    price: TRACKING_CONFIG.ORDER_BUMP_PRICE || 5000,
-    title: 'Add the Workshop Implementation Pack',
-    description: 'Add the working frameworks, worksheets, and post-workshop group implementation session.',
-    status: 'Final contents will be confirmed before payment opens.'
-  })
+  basePrice: TRACKING_CONFIG.TICKET_PRICE || 5000
 });
 
 const money = value => `${WORKSHOP_CONFIG.currency} ${value.toLocaleString('en-PK')}`;
-const checkoutState = { format: 'online', implementationPack: false };
+const checkoutState = { format: 'online' };
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 
 function playMotion(element, keyframes, options = {}) {
@@ -36,36 +31,16 @@ function acknowledgeSelection(element) {
   ], { duration: 180 });
 }
 
-const diagnoses = {
-  think: ['What is the buyer still unsure about?', 'The offer may be clear, but the outcome, risk, or decision itself may not be. Another follow-up won’t tell you which.'],
-  price: ['Was the value clear before the price?', 'Price may be the real constraint. Or the buyer may not yet see how the offer helps their business. Diagnose the hesitation before discounting.'],
-  proposal: ['Did you agree what the proposal would resolve?', 'A proposal is useful when it supports a known decision. Without that agreement, “send it over” can leave you both with a different idea of what happens next.'],
-  partner: ['Did you understand who makes the decision?', 'Another decision-maker may need to be involved. Discovering that early helps you understand their criteria and plan a next step together.']
-};
-
-document.querySelectorAll('[data-objection]').forEach(button => button.addEventListener('click', () => {
-  document.querySelectorAll('[data-objection]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
-  const [title, copy] = diagnoses[button.dataset.objection];
-  document.getElementById('diagnosis-title').textContent = title;
-  document.getElementById('diagnosis-copy').textContent = copy;
-  acknowledgeSelection(button);
-  playMotion(document.querySelector('.diagnosis'), [
-    { opacity: .55, transform: 'translateY(4px)' },
-    { opacity: 1, transform: 'translateY(0)' }
-  ]);
-}));
-
 function formatName(format) {
-  return format === 'online' ? 'Live online' : 'Live in Karachi';
+  return format === 'online' ? 'Live online' : 'Karachi in person';
 }
 
 function updateCheckoutSummary() {
   const name = formatName(checkoutState.format);
-  const total = WORKSHOP_CONFIG.basePrice + (checkoutState.implementationPack ? WORKSHOP_CONFIG.implementationPack.price : 0);
   document.getElementById('order-format').textContent = `${name} · 1 attendee`;
   document.getElementById('preview-format').textContent = name;
-  document.getElementById('order-total').textContent = money(total);
-  document.getElementById('payment-selection').textContent = `${name} · ${checkoutState.implementationPack ? 'workshop + Implementation Pack' : 'workshop only'} · ${money(total)}`;
+  document.getElementById('order-total').textContent = money(WORKSHOP_CONFIG.basePrice);
+  document.getElementById('payment-selection').textContent = `${name} · ${money(WORKSHOP_CONFIG.basePrice)}`;
   document.getElementById('payment-preview').hidden = true;
   document.querySelectorAll('[data-format-select]').forEach(button => {
     button.setAttribute('aria-pressed', String(button.dataset.formatSelect === checkoutState.format));
@@ -85,31 +60,17 @@ function selectFormat(format) {
       { opacity: .62, transform: 'translateY(3px)' },
       { opacity: 1, transform: 'translateY(0)' }
     ]);
+    analytics.trackEvent('attendance_selected', { attendance_type: format, page_section: 'tickets' });
   }
-  if (changed) analytics.trackEvent('attendance_selected', { attendance_type: format, page_section: 'tickets' });
 }
 
 document.querySelectorAll('input[name="format"]').forEach(input => input.addEventListener('change', () => selectFormat(input.value)));
 document.querySelectorAll('[data-format-select]').forEach(button => button.addEventListener('click', () => selectFormat(button.dataset.formatSelect)));
 
-const bump = document.getElementById('implementation-pack');
-document.getElementById('bump-title').textContent = WORKSHOP_CONFIG.implementationPack.title;
-document.getElementById('bump-description').textContent = WORKSHOP_CONFIG.implementationPack.description;
-document.getElementById('bump-status').textContent = WORKSHOP_CONFIG.implementationPack.status;
-bump.addEventListener('change', () => {
-  checkoutState.implementationPack = bump.checked;
-  updateCheckoutSummary();
-  if (bump.checked) analytics.trackEvent('order_bump_selected', {
-    bump_value: WORKSHOP_CONFIG.implementationPack.price,
-    currency: WORKSHOP_CONFIG.currency,
-    product: 'workshop_implementation_pack'
-  });
-});
-
 const attendeeStage = document.getElementById('attendee-stage');
 const checkoutStage = document.getElementById('checkout-stage');
 const seatForm = document.getElementById('seat-form');
-let contactSubmission = Promise.resolve(false);
+let contactSubmission = Promise.resolve({ ok: false });
 
 const turnstileSiteKey = TRACKING_CONFIG.TURNSTILE_SITE_KEY;
 const reserveButton = seatForm.querySelector('button[type="submit"]');
@@ -181,12 +142,6 @@ seatForm.addEventListener('submit', event => {
     { opacity: .35, transform: 'translateY(10px)' },
     { opacity: 1, transform: 'translateY(0)' }
   ], { duration: 320 });
-  analytics.oncePerSession('order_bump_viewed', 'order_bump_viewed', {
-    product: TRACKING_CONFIG.PRODUCT_ID || 'high_ticket_sales_workshop',
-    value: WORKSHOP_CONFIG.implementationPack.price,
-    currency: WORKSHOP_CONFIG.currency,
-    page_section: 'checkout'
-  });
   updateCheckoutSummary();
   checkoutStage.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'nearest' });
 });
@@ -203,35 +158,37 @@ document.getElementById('edit-details').addEventListener('click', () => {
 
 document.getElementById('payment-button').addEventListener('click', async () => {
   const button = document.getElementById('payment-button');
-  const total = WORKSHOP_CONFIG.basePrice + (checkoutState.implementationPack ? WORKSHOP_CONFIG.implementationPack.price : 0);
+  const total = WORKSHOP_CONFIG.basePrice;
   const checkoutUrl = TRACKING_CONFIG.CHECKOUT_URL;
-  if (checkoutUrl) {
-    button.disabled = true;
-    analytics.trackEvent('checkout_started', {
-      value: total,
-      currency: WORKSHOP_CONFIG.currency,
-      product: TRACKING_CONFIG.PRODUCT_ID || 'high_ticket_sales_workshop',
-      attendance_type: checkoutState.format,
-      order_bump: checkoutState.implementationPack
-    });
-    const fullName = document.getElementById('name').value.trim();
-    const nameParts = fullName.split(/\s+/);
-    const firstName = nameParts.shift() || '';
-    const lastName = nameParts.join(' ');
-    // Turnstile tokens are single-use. The contact is submitted once at the attendee step;
-    // checkout_started remains an analytics event and does not resubmit the same token.
-    await Promise.race([contactSubmission, new Promise(resolve => setTimeout(resolve, 900))]);
-    window.location.assign(analytics.checkoutUrl(checkoutUrl, {
-      ...analytics.attribution
-    }, {
-      attendance_type: checkoutState.format,
-      product: TRACKING_CONFIG.PRODUCT_ID || 'high_ticket_sales_workshop',
-      value: total,
-      currency: WORKSHOP_CONFIG.currency,
-      order_bump: checkoutState.implementationPack
-    }));
+  button.disabled = true;
+  const registration = await Promise.race([
+    contactSubmission,
+    new Promise(resolve => setTimeout(() => resolve({ ok: false }), 3000))
+  ]);
+  if (!registration.ok) {
+    button.disabled = false;
+    document.getElementById('checkout-disclosure').textContent = 'We could not save your registration. Please edit your details and try again.';
     return;
   }
+  const order = {
+    attendance_type: checkoutState.format,
+    product: TRACKING_CONFIG.PRODUCT_ID || 'high_ticket_sales_workshop',
+    value: total,
+    currency: WORKSHOP_CONFIG.currency,
+    order_bump: false
+  };
+  const checkoutRecorded = await analytics.submitCheckoutStart(registration, order);
+  if (!checkoutRecorded) {
+    button.disabled = false;
+    document.getElementById('checkout-disclosure').textContent = 'Checkout is temporarily unavailable. Please try again.';
+    return;
+  }
+  analytics.trackEvent('checkout_started', order);
+  if (checkoutUrl) {
+    window.location.assign(analytics.checkoutUrl(checkoutUrl, order));
+    return;
+  }
+  button.disabled = false;
   const preview = document.getElementById('payment-preview');
   preview.hidden = false;
   preview.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'nearest' });
@@ -269,7 +226,7 @@ if (!motionPreference.matches) {
 // deliberately prepared an offscreen element for its one-time entrance.
 if ('IntersectionObserver' in window && !motionPreference.matches) {
   const revealTargets = [
-    document.querySelector('.insight-grid'),
+    document.querySelector('.recognition-copy'),
     document.querySelector('#method > .section-heading'),
     document.querySelector('.experience-grid'),
     document.querySelector('.community-proof-heading'),

@@ -7,15 +7,16 @@
     GTM_CONTAINER_ID: '',
     // Same-origin proxy. The HighLevel webhook URL stays in Netlify environment variables.
     HIGHLEVEL_WEBHOOK_OR_FORM_ENDPOINT: '/.netlify/functions/workshop-contact',
+    CHECKOUT_START_ENDPOINT: '/.netlify/functions/workshop-checkout',
+    BANK_TRANSFER_ENDPOINT: '/.netlify/functions/workshop-bank-transfer',
     // Public site key only. Keep the matching secret in Netlify environment variables.
     TURNSTILE_SITE_KEY: '',
     CHECKOUT_URL: '',
     PRODUCT_ID: 'high_ticket_sales_workshop',
     PRODUCT_NAME: 'High-Ticket Sales Workshop',
-    WORKSHOP_DATE: '2026-10-24',
+    WORKSHOP_DATE: '2026-10-25',
     CURRENCY: 'PKR',
     TICKET_PRICE: 5000,
-    ORDER_BUMP_PRICE: 5000,
     ANALYTICS_DEBUG: false
   });
 
@@ -24,7 +25,7 @@
   const EVENT_ALLOWLIST = new Set([
     'workshop_page_view', 'workshop_cta_click', 'registration_started',
     'attendance_selected', 'contact_submitted', 'checkout_started',
-    'order_bump_viewed', 'order_bump_selected', 'payment_instructions_viewed',
+    'payment_instructions_viewed',
     'payment_proof_submitted'
   ]);
   const SERVER_ONLY_EVENTS = new Set(['payment_verified', 'purchase']);
@@ -232,10 +233,11 @@
     }
 
     async function submitContact(contact, { trackSubmission = true } = {}) {
-      if (!config.HIGHLEVEL_WEBHOOK_OR_FORM_ENDPOINT) return false;
+      if (!config.HIGHLEVEL_WEBHOOK_OR_FORM_ENDPOINT) return { ok: false };
+      const tokenField = page && typeof page.getElementById === 'function' ? page.getElementById('turnstile-token') : null;
       const body = {
         ...contact,
-        turnstile_token: page && page.getElementById('turnstile-token') ? page.getElementById('turnstile-token').value : '',
+        turnstile_token: tokenField ? tokenField.value : '',
         workshop_name: config.PRODUCT_NAME,
         workshop_date: config.WORKSHOP_DATE,
         registration_status: contact.registration_status || 'Landing Page Lead',
@@ -252,13 +254,31 @@
           keepalive: true,
           credentials: 'same-origin'
         });
-        if (!response.ok) return false;
+        if (!response.ok) return { ok: false };
+        const result = await response.json();
         if (trackSubmission) trackEvent('contact_submitted', { product: config.PRODUCT_ID });
-        return true;
+        return { ok: true, registrationId: result.registration_id, registrationToken: result.registration_token };
+      } catch (_) { return { ok: false }; }
+    }
+
+    async function submitCheckoutStart(registration, order) {
+      if (!config.CHECKOUT_START_ENDPOINT || !registration || !registration.registrationToken) return false;
+      try {
+        const response = await browser.fetch(config.CHECKOUT_START_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            registration_token: registration.registrationToken,
+            attendance_type: order.attendance_type,
+            add_on_selected: Boolean(order.order_bump)
+          })
+        });
+        return response.ok;
       } catch (_) { return false; }
     }
 
-    return { config, attribution, trackEvent, oncePerSession, submitContact, checkoutUrl: (base, order) => checkoutUrl(base, attribution, order) };
+    return { config, attribution, trackEvent, oncePerSession, submitContact, submitCheckoutStart, checkoutUrl: (base, order) => checkoutUrl(base, attribution, order) };
   }
 
   function inferCtaContext(anchor) {
