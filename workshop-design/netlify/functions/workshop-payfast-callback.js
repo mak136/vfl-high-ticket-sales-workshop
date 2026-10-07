@@ -1,6 +1,6 @@
 'use strict';
 
-const { headersFor, postWebhook, response } = require('./workshop-shared.js');
+const { headersFor, highLevelPayload, postWebhook, response } = require('./workshop-shared.js');
 
 function parseCallback(event) {
   const contentType = headersFor(event)['content-type'] || '';
@@ -65,12 +65,12 @@ exports.handler = async function handler(event) {
     const verifiedAt = new Date().toISOString();
     const claimed = await claimTransaction(transactionId, { transaction_id: transactionId, registration_id: basketId, amount, verified_at: verifiedAt });
     if (!claimed.modified) return response(200, { ok: true, duplicate: true });
-    await postWebhook('HIGHLEVEL_PAID_WEBHOOK_URL', {
+    await postWebhook('HIGHLEVEL_PAID_WEBHOOK_URL', highLevelPayload({
       event_type: 'payment_verified', registration_id: basketId, payfast_transaction_id: transactionId,
       amount_paid: amount, total_order_value: amount, currency: 'PKR', payment_status: 'Paid',
       payment_method: pick(verified, 'payment_method', 'account_type', 'instrument_type') || 'payfast',
       verified_payment_timestamp: verifiedAt, registration_status: 'Paid / Registered'
-    });
+    }));
     return response(200, { ok: true, duplicate: false });
   } catch (error) {
     return response(error.statusCode || 502, { ok: false, error: error.statusCode ? error.message : 'Payment verification failed.' });
