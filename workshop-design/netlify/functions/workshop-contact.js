@@ -3,7 +3,7 @@
 const crypto = require('node:crypto');
 const {
   CURRENCY, WORKSHOP_DATE, WORKSHOP_NAME, clean, highLevelPayload, normalizeAttendance, normalizeAttribution,
-  orderValues, parseJson, postWebhook, requireSameOrigin, response, signRegistration, verifyTurnstile
+  orderValues, parseJson, postWebhook, requireSameOrigin, response, saveRegistration, signRegistration, verifyTurnstile
 } = require('./workshop-shared.js');
 
 exports.handler = async function handler(event) {
@@ -33,6 +33,7 @@ exports.handler = async function handler(event) {
       registration_status: 'Lead Captured', ...normalizeAttribution(data.attribution)
     };
     await postWebhook('HIGHLEVEL_REGISTRATION_WEBHOOK_URL', highLevelPayload(payload), 'HIGHLEVEL_WEBHOOK_OR_FORM_ENDPOINT');
+    await saveRegistration(registrationId, payload);
     const registrationToken = signRegistration({
       registration_id: registrationId, email, phone, first_name: firstName, last_name: lastName
     }, process.env.WORKSHOP_SIGNING_SECRET || '');
