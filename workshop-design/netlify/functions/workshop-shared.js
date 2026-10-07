@@ -15,7 +15,7 @@ const BASE_TICKET_AMOUNT = 5000;
 const ADD_ON_AMOUNT = 5000;
 const CURRENCY = 'PKR';
 const WORKSHOP_NAME = 'High-Ticket Sales Workshop';
-const WORKSHOP_DATE = '2026-10-24';
+const WORKSHOP_DATE = '2026-10-25';
 
 function response(statusCode, body) {
   return {
@@ -81,6 +81,51 @@ function orderValues(addOnSelected) {
     total_order_value: BASE_TICKET_AMOUNT + (addOn ? ADD_ON_AMOUNT : 0),
     currency: CURRENCY
   };
+}
+
+const HIGHLEVEL_FIELD_NAMES = {
+  event_type: 'event',
+  registration_id: 'registrationId',
+  form_submitted: 'formSubmitted',
+  first_name: 'firstName',
+  last_name: 'lastName',
+  workshop_name: 'workshopName',
+  workshop_date: 'workshopDate',
+  attendance_type: 'attendanceType',
+  ticket_type: 'ticketType',
+  base_ticket_amount: 'baseTicketAmount',
+  add_on_selected: 'addonSelected',
+  add_on_amount: 'addonAmount',
+  total_order_value: 'totalOrderValue',
+  amount_paid: 'amountPaid',
+  payment_status: 'paymentStatus',
+  payment_method: 'paymentMethod',
+  payfast_transaction_id: 'payfastTransactionId',
+  verified_payment_timestamp: 'verifiedPaymentTimestamp',
+  registration_status: 'registrationStatus',
+  first_touch_source: 'firstTouchSource',
+  first_touch_campaign: 'firstTouchCampaign',
+  first_touch_landing_page: 'firstTouchLandingPage',
+  first_touch_referrer: 'firstTouchReferrer',
+  last_touch_source: 'lastTouchSource',
+  last_touch_campaign: 'lastTouchCampaign',
+  last_touch_medium: 'lastTouchMedium',
+  last_touch_content: 'lastTouchContent',
+  last_touch_term: 'lastTouchTerm',
+  last_touch_fbclid: 'lastTouchFbclid',
+  last_touch_gclid: 'lastTouchGclid',
+  last_touch_landing_page: 'lastTouchLandingPage',
+  last_touch_referrer: 'lastTouchReferrer',
+  utm_source: 'utmSource',
+  utm_medium: 'utmMedium',
+  utm_campaign: 'utmCampaign',
+  utm_content: 'utmContent',
+  utm_term: 'utmTerm',
+  landing_page: 'landingPage'
+};
+
+function highLevelPayload(payload) {
+  return Object.fromEntries(Object.entries(payload).map(([key, value]) => [HIGHLEVEL_FIELD_NAMES[key] || key, value]));
 }
 
 function signRegistration(payload, secret) {
@@ -156,6 +201,6 @@ async function postWebhook(envName, payload, fallbackName) {
 
 module.exports = {
   ADD_ON_AMOUNT, ATTRIBUTION_FIELDS, BASE_TICKET_AMOUNT, CURRENCY, WORKSHOP_DATE, WORKSHOP_NAME,
-  clean, headersFor, normalizeAttendance, normalizeAttribution, orderValues, parseJson, postWebhook,
+  clean, headersFor, highLevelPayload, normalizeAttendance, normalizeAttribution, orderValues, parseJson, postWebhook,
   requireSameOrigin, response, signRegistration, verifyRegistration, verifyTurnstile
 };
