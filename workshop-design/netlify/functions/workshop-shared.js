@@ -16,6 +16,7 @@ const ADD_ON_AMOUNT = 5000;
 const CURRENCY = 'PKR';
 const WORKSHOP_NAME = 'High-Ticket Sales Workshop';
 const WORKSHOP_DATE = '2026-10-25';
+const TEST_REGISTRATIONS = new Map();
 
 function response(statusCode, body) {
   return {
@@ -128,6 +129,27 @@ function highLevelPayload(payload) {
   return Object.fromEntries(Object.entries(payload).map(([key, value]) => [HIGHLEVEL_FIELD_NAMES[key] || key, value]));
 }
 
+async function registrationStore() {
+  if (process.env.WORKSHOP_REGISTRATION_STORE === 'memory') {
+    return {
+      setJSON: async (key, value) => TEST_REGISTRATIONS.set(key, structuredClone(value)),
+      get: async key => TEST_REGISTRATIONS.get(key) || null
+    };
+  }
+  const { getStore } = await import('@netlify/blobs');
+  return getStore('workshop-registrations');
+}
+
+async function saveRegistration(registrationId, record) {
+  const store = await registrationStore();
+  await store.setJSON(`registrations/${registrationId}`, record);
+}
+
+async function getRegistration(registrationId) {
+  const store = await registrationStore();
+  return store.get(`registrations/${registrationId}`, { type: 'json' });
+}
+
 function signRegistration(payload, secret) {
   if (!secret || secret.length < 32) throw new Error('WORKSHOP_SIGNING_SECRET must contain at least 32 characters.');
   const encoded = Buffer.from(JSON.stringify({ ...payload, issued_at: Date.now() })).toString('base64url');
@@ -201,6 +223,7 @@ async function postWebhook(envName, payload, fallbackName) {
 
 module.exports = {
   ADD_ON_AMOUNT, ATTRIBUTION_FIELDS, BASE_TICKET_AMOUNT, CURRENCY, WORKSHOP_DATE, WORKSHOP_NAME,
-  clean, headersFor, highLevelPayload, normalizeAttendance, normalizeAttribution, orderValues, parseJson, postWebhook,
-  requireSameOrigin, response, signRegistration, verifyRegistration, verifyTurnstile
+  clean, getRegistration, headersFor, highLevelPayload, normalizeAttendance, normalizeAttribution, orderValues,
+  parseJson, postWebhook, requireSameOrigin, response, saveRegistration, signRegistration, verifyRegistration,
+  verifyTurnstile
 };
