@@ -1,6 +1,8 @@
 'use strict';
 
-const { headersFor, highLevelPayload, postWebhook, response } = require('./workshop-shared.js');
+const {
+  WORKSHOP_DATE, WORKSHOP_NAME, getRegistration, headersFor, highLevelPayload, postWebhook, response
+} = require('./workshop-shared.js');
 
 function parseCallback(event) {
   const contentType = headersFor(event)['content-type'] || '';
@@ -46,6 +48,11 @@ async function claimTransaction(transactionId, record) {
   return store.setJSON(`payfast/${transactionId}`, record, { onlyIfNew: true });
 }
 
+async function releaseTransaction(transactionId) {
+  const { getStore } = await import('@netlify/blobs');
+  await getStore('workshop-payments').delete(`payfast/${transactionId}`);
+}
+
 exports.handler = async function handler(event) {
   if (event.httpMethod !== 'POST') return response(405, { ok: false, error: 'Method not allowed.' });
   try {
@@ -59,18 +66,33 @@ exports.handler = async function handler(event) {
     const successCodes = new Set((process.env.PAYFAST_SUCCESS_CODES || '00,79').split(',').map(value => value.trim()));
     const basketId = pick(verified, 'basket_id', 'BASKET_ID');
     const amount = Number(pick(verified, 'txnamt', 'amount', 'TXNAMT'));
-    if (!successCodes.has(statusCode) || basketId !== callbackBasketId || ![5000, 10000].includes(amount)) {
+    const registration = await getRegistration(basketId);
+    if (!registration || !successCodes.has(statusCode) || basketId !== callbackBasketId || amount !== registration.total_order_value) {
       return response(400, { ok: false, error: 'PayFast transaction did not pass server verification.' });
     }
     const verifiedAt = new Date().toISOString();
     const claimed = await claimTransaction(transactionId, { transaction_id: transactionId, registration_id: basketId, amount, verified_at: verifiedAt });
     if (!claimed.modified) return response(200, { ok: true, duplicate: true });
-    await postWebhook('HIGHLEVEL_PAID_WEBHOOK_URL', highLevelPayload({
-      event_type: 'payment_verified', registration_id: basketId, payfast_transaction_id: transactionId,
-      amount_paid: amount, total_order_value: amount, currency: 'PKR', payment_status: 'Paid',
-      payment_method: pick(verified, 'payment_method', 'account_type', 'instrument_type') || 'payfast',
-      verified_payment_timestamp: verifiedAt, registration_status: 'Paid / Registered'
-    }));
+    try {
+      await postWebhook('HIGHLEVEL_PAID_WEBHOOK_URL', highLevelPayload({
+        event_type: 'payment_verified', registration_id: basketId,
+        email: registration.email, phone: registration.phone,
+        first_name: registration.first_name, last_name: registration.last_name,
+        workshop_name: registration.workshop_name || WORKSHOP_NAME,
+        workshop_date: registration.workshop_date || WORKSHOP_DATE,
+        attendance_type: registration.attendance_type,
+        ticket_type: registration.ticket_type,
+        base_ticket_amount: registration.base_ticket_amount,
+        add_on_selected: registration.add_on_selected,
+        payfast_transaction_id: transactionId, amount_paid: amount, total_order_value: amount,
+        currency: 'PKR', payment_status: 'Paid',
+        payment_method: pick(verified, 'payment_method', 'account_type', 'instrument_type') || 'payfast',
+        verified_payment_timestamp: verifiedAt, registration_status: 'Paid / Registered'
+      }));
+    } catch (error) {
+      await releaseTransaction(transactionId);
+      throw error;
+    }
     return response(200, { ok: true, duplicate: false });
   } catch (error) {
     return response(error.statusCode || 502, { ok: false, error: error.statusCode ? error.message : 'Payment verification failed.' });
