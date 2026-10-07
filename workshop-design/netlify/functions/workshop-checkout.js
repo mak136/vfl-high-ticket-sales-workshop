@@ -2,7 +2,7 @@
 
 const {
   WORKSHOP_DATE, WORKSHOP_NAME, highLevelPayload, normalizeAttendance, orderValues, parseJson, postWebhook,
-  requireSameOrigin, response, verifyRegistration
+  requireSameOrigin, response, saveRegistration, verifyRegistration
 } = require('./workshop-shared.js');
 
 exports.handler = async function handler(event) {
@@ -20,6 +20,7 @@ exports.handler = async function handler(event) {
       ...orderValues(data.add_on_selected), payment_status: 'Unpaid', registration_status: 'Checkout Started'
     };
     await postWebhook('HIGHLEVEL_CHECKOUT_WEBHOOK_URL', highLevelPayload(payload));
+    await saveRegistration(registration.registration_id, { ...registration, ...payload });
     return response(200, { ok: true, registration_id: registration.registration_id, ...orderValues(data.add_on_selected) });
   } catch (error) {
     return response(error.statusCode || 502, { ok: false, error: error.statusCode ? error.message : 'Checkout could not be started right now.' });
