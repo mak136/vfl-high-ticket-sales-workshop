@@ -25,6 +25,7 @@
   const EVENT_ALLOWLIST = new Set([
     'workshop_page_view', 'workshop_cta_click', 'registration_started',
     'attendance_selected', 'contact_submitted', 'checkout_started',
+    'order_bump_viewed', 'order_bump_selected',
     'payment_instructions_viewed',
     'payment_proof_submitted'
   ]);
