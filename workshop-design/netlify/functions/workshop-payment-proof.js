@@ -1,6 +1,6 @@
 'use strict';
 
-const { getPaymentProof, response, verifyRegistration } = require('./workshop-shared.js');
+const { connectBlobs, getPaymentProof, response, verifyRegistration } = require('./workshop-shared.js');
 
 exports.handler = async function handler(event) {
   if (event.httpMethod !== 'GET') return response(405, { ok: false, error: 'Method not allowed.' });
@@ -10,6 +10,7 @@ exports.handler = async function handler(event) {
     if (!access || access.purpose !== 'payment_proof' || !access.registration_id) {
       return response(401, { ok: false, error: 'This payment-proof link is invalid or expired.' });
     }
+    await connectBlobs(event);
     const proof = await getPaymentProof(access.registration_id);
     if (!proof || !proof.data || !proof.mime_type) return response(404, { ok: false, error: 'Payment proof was not found.' });
     const extension = proof.mime_type === 'image/png' ? 'png' : proof.mime_type === 'image/webp' ? 'webp' : 'jpg';
