@@ -1,7 +1,7 @@
 'use strict';
 
 const {
-  WORKSHOP_DATE, WORKSHOP_NAME, getRegistration, headersFor, highLevelPayload, issueTicket, postWebhook, response, saveRegistration
+  WORKSHOP_DATE, WORKSHOP_NAME, connectBlobs, getRegistration, headersFor, highLevelPayload, issueTicket, postWebhook, response, saveRegistration
 } = require('./workshop-shared.js');
 
 function parseCallback(event) {
@@ -56,6 +56,7 @@ async function releaseTransaction(transactionId) {
 exports.handler = async function handler(event) {
   if (event.httpMethod !== 'POST') return response(405, { ok: false, error: 'Method not allowed.' });
   try {
+    await connectBlobs(event);
     const data = parseCallback(event);
     const transactionId = pick(data, 'transaction_id', 'TRANSACTION_ID');
     const callbackBasketId = pick(data, 'basket_id', 'BASKET_ID');
