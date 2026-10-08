@@ -2,7 +2,7 @@
 
 const crypto = require('node:crypto');
 const {
-  WORKSHOP_DATE, WORKSHOP_NAME, getPaymentProof, getRegistration, headersFor, highLevelPayload,
+  WORKSHOP_DATE, WORKSHOP_NAME, connectBlobs, getPaymentProof, getRegistration, headersFor, highLevelPayload,
   issueTicket, parseJson, postWebhook, response, saveRegistration
 } = require('./workshop-shared.js');
 
@@ -17,6 +17,7 @@ exports.handler = async function handler(event) {
   if (event.httpMethod !== 'POST') return response(405, { ok: false, error: 'Method not allowed.' });
   if (!authorized(event)) return response(401, { ok: false, error: 'Unauthorized.' });
   try {
+    await connectBlobs(event);
     const data = parseJson(event, 4000);
     const registrationId = String(data.registration_id || '').trim();
     const registration = await getRegistration(registrationId);
