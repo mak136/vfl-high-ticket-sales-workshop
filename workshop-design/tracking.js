@@ -12,6 +12,11 @@
     // Public site key only. Keep the matching secret in Netlify environment variables.
     TURNSTILE_SITE_KEY: '0x4AAAAAAFQ5i_2KJPBbJH-_',
     CHECKOUT_URL: '',
+    BANK_TRANSFER_READY: false,
+    BANK_NAME: 'JS Bank',
+    BANK_ACCOUNT_TITLE: 'Revenue Incarnate',
+    BANK_IBAN: '',
+    BANK_ACCOUNT_NUMBER: '',
     PRODUCT_ID: 'high_ticket_sales_workshop',
     PRODUCT_NAME: 'High-Ticket Sales Workshop',
     WORKSHOP_DATE: '2026-10-25',
@@ -255,11 +260,15 @@
           keepalive: true,
           credentials: 'same-origin'
         });
-        if (!response.ok) return { ok: false };
+        if (!response.ok) {
+          let message = '';
+          try { message = clean((await response.json()).error, 180); } catch (_) { /* use the safe fallback */ }
+          return { ok: false, error: message || 'We could not save your registration. Please try again.' };
+        }
         const result = await response.json();
         if (trackSubmission) trackEvent('contact_submitted', { product: config.PRODUCT_ID });
         return { ok: true, registrationId: result.registration_id, registrationToken: result.registration_token };
-      } catch (_) { return { ok: false }; }
+      } catch (_) { return { ok: false, error: 'Registration is temporarily unavailable. Please try again.' }; }
     }
 
     async function submitCheckoutStart(registration, order) {
@@ -279,7 +288,32 @@
       } catch (_) { return false; }
     }
 
-    return { config, attribution, trackEvent, oncePerSession, submitContact, submitCheckoutStart, checkoutUrl: (base, order) => checkoutUrl(base, attribution, order) };
+    async function submitBankTransfer(registration, order, proof) {
+      if (!config.BANK_TRANSFER_ENDPOINT || !registration || !registration.registrationToken || !proof) return { ok: false };
+      try {
+        const response = await browser.fetch(config.BANK_TRANSFER_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            registration_token: registration.registrationToken,
+            attendance_type: order.attendance_type,
+            add_on_selected: Boolean(order.order_bump),
+            payment_proof: proof
+          })
+        });
+        if (!response.ok) return { ok: false };
+        const result = await response.json();
+        trackEvent('payment_proof_submitted', {
+          payment_method: 'bank_transfer',
+          attendance_type: order.attendance_type,
+          value: order.value,
+          currency: order.currency
+        });
+        return { ok: true, registrationId: result.registration_id, paymentStatus: result.payment_status };
+      } catch (_) { return { ok: false }; }
+    }
+
+    return { config, attribution, trackEvent, oncePerSession, submitContact, submitCheckoutStart, submitBankTransfer, checkoutUrl: (base, order) => checkoutUrl(base, attribution, order) };
   }
 
   function inferCtaContext(anchor) {
