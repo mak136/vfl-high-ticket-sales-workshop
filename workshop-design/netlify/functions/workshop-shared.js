@@ -20,6 +20,12 @@ const TEST_REGISTRATIONS = new Map();
 const TEST_PAYMENT_PROOFS = new Map();
 const TEST_TICKETS = new Map();
 
+async function connectBlobs(event) {
+  if (process.env.WORKSHOP_REGISTRATION_STORE === 'memory') return;
+  const { connectLambda } = await import('@netlify/blobs');
+  connectLambda(event);
+}
+
 function response(statusCode, body) {
   return {
     statusCode,
@@ -295,7 +301,7 @@ async function postWebhook(envName, payload, fallbackName) {
 
 module.exports = {
   ADD_ON_AMOUNT, ATTRIBUTION_FIELDS, BASE_TICKET_AMOUNT, CURRENCY, WORKSHOP_DATE, WORKSHOP_NAME,
-  clean, getPaymentProof, getRegistration, getTicket, headersFor, highLevelPayload, issueTicket, normalizeAttendance, normalizeAttribution, orderValues,
+  clean, connectBlobs, getPaymentProof, getRegistration, getTicket, headersFor, highLevelPayload, issueTicket, normalizeAttendance, normalizeAttribution, orderValues,
   parseJson, postWebhook, requireSameOrigin, response, savePaymentProof, saveRegistration, signRegistration, verifyRegistration,
   verifyTurnstile
 };
