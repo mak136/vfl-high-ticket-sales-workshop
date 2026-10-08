@@ -12,8 +12,10 @@ exports.handler = async function handler(event) {
   const contentType = (event.headers || {})['content-type'] || (event.headers || {})['Content-Type'] || '';
   if (!/^application\/json(?:\s*;|\s*$)/i.test(contentType)) return response(415, { ok: false, error: 'JSON content is required.' });
 
+  let phase = 'request_validation';
   try {
     const data = parseJson(event);
+    phase = 'turnstile_verification';
     await verifyTurnstile(clean(data.turnstile_token, 2048), event);
     const email = clean(data.email, 254).toLowerCase();
     const phone = clean(data.phone, 40);
@@ -32,13 +34,22 @@ exports.handler = async function handler(event) {
       ...orderValues(false), payment_status: 'Unpaid', payment_method: '', amount_paid: 0,
       registration_status: 'Lead Captured', ...normalizeAttribution(data.attribution)
     };
+    phase = 'highlevel_handoff';
     await postWebhook('HIGHLEVEL_REGISTRATION_WEBHOOK_URL', highLevelPayload(payload), 'HIGHLEVEL_WEBHOOK_OR_FORM_ENDPOINT');
+    phase = 'registration_storage';
     await saveRegistration(registrationId, payload);
+    phase = 'registration_signing';
     const registrationToken = signRegistration({
       registration_id: registrationId, email, phone, first_name: firstName, last_name: lastName
     }, process.env.WORKSHOP_SIGNING_SECRET || '');
     return response(200, { ok: true, registration_id: registrationId, registration_token: registrationToken, currency: CURRENCY });
   } catch (error) {
+    console.error('[workshop-contact] registration failed', {
+      phase,
+      name: error && error.name,
+      message: error && error.message,
+      statusCode: error && error.statusCode
+    });
     return response(error.statusCode || 502, { ok: false, error: error.statusCode ? error.message : 'Registration could not be saved right now.' });
   }
 };
