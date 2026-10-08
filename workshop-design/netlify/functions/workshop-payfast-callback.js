@@ -1,7 +1,7 @@
 'use strict';
 
 const {
-  WORKSHOP_DATE, WORKSHOP_NAME, getRegistration, headersFor, highLevelPayload, postWebhook, response
+  WORKSHOP_DATE, WORKSHOP_NAME, getRegistration, headersFor, highLevelPayload, issueTicket, postWebhook, response, saveRegistration
 } = require('./workshop-shared.js');
 
 function parseCallback(event) {
@@ -74,7 +74,13 @@ exports.handler = async function handler(event) {
     const claimed = await claimTransaction(transactionId, { transaction_id: transactionId, registration_id: basketId, amount, verified_at: verifiedAt });
     if (!claimed.modified) return response(200, { ok: true, duplicate: true });
     try {
-      await postWebhook('HIGHLEVEL_PAID_WEBHOOK_URL', highLevelPayload({
+      const payment = {
+        transaction_id: transactionId, amount_paid: amount, currency: 'PKR',
+        payment_method: pick(verified, 'payment_method', 'account_type', 'instrument_type') || 'payfast',
+        verified_at: verifiedAt
+      };
+      const ticket = await issueTicket(registration, payment);
+      const paidPayload = {
         event_type: 'payment_verified', registration_id: basketId,
         email: registration.email, phone: registration.phone,
         first_name: registration.first_name, last_name: registration.last_name,
@@ -86,9 +92,12 @@ exports.handler = async function handler(event) {
         add_on_selected: registration.add_on_selected,
         payfast_transaction_id: transactionId, amount_paid: amount, total_order_value: amount,
         currency: 'PKR', payment_status: 'Paid',
-        payment_method: pick(verified, 'payment_method', 'account_type', 'instrument_type') || 'payfast',
-        verified_payment_timestamp: verifiedAt, registration_status: 'Paid / Registered'
-      }));
+        payment_method: payment.payment_method,
+        verified_payment_timestamp: verifiedAt, registration_status: 'Paid / Registered',
+        ticket_id: ticket.ticket_id, ticket_url: ticket.ticket_url
+      };
+      await postWebhook('HIGHLEVEL_PAID_WEBHOOK_URL', highLevelPayload(paidPayload));
+      await saveRegistration(basketId, { ...registration, ...paidPayload });
     } catch (error) {
       await releaseTransaction(transactionId);
       throw error;
