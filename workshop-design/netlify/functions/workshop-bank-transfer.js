@@ -1,7 +1,7 @@
 'use strict';
 
 const {
-  WORKSHOP_DATE, WORKSHOP_NAME, headersFor, highLevelPayload, normalizeAttendance, orderValues, parseJson, postWebhook,
+  WORKSHOP_DATE, WORKSHOP_NAME, connectBlobs, headersFor, highLevelPayload, normalizeAttendance, orderValues, parseJson, postWebhook,
   requireSameOrigin, response, savePaymentProof, saveRegistration, signRegistration, verifyRegistration
 } = require('./workshop-shared.js');
 
@@ -24,6 +24,7 @@ exports.handler = async function handler(event) {
       return response(413, { ok: false, error: 'The payment screenshot must be smaller than 2 MB.' });
     }
     const receivedAt = new Date().toISOString();
+    await connectBlobs(event);
     await savePaymentProof(registration.registration_id, {
       mime_type: mimeType,
       data: encoded,
