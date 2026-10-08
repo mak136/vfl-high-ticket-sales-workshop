@@ -2,7 +2,7 @@
 
 const crypto = require('node:crypto');
 const {
-  CURRENCY, WORKSHOP_DATE, WORKSHOP_NAME, clean, highLevelPayload, normalizeAttendance, normalizeAttribution,
+  CURRENCY, WORKSHOP_DATE, WORKSHOP_NAME, clean, connectBlobs, highLevelPayload, normalizeAttendance, normalizeAttribution,
   orderValues, parseJson, postWebhook, requireSameOrigin, response, saveRegistration, signRegistration, verifyTurnstile
 } = require('./workshop-shared.js');
 
@@ -37,6 +37,7 @@ exports.handler = async function handler(event) {
     phase = 'highlevel_handoff';
     await postWebhook('HIGHLEVEL_REGISTRATION_WEBHOOK_URL', highLevelPayload(payload), 'HIGHLEVEL_WEBHOOK_OR_FORM_ENDPOINT');
     phase = 'registration_storage';
+    await connectBlobs(event);
     await saveRegistration(registrationId, payload);
     phase = 'registration_signing';
     const registrationToken = signRegistration({
