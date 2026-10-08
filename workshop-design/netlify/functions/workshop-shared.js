@@ -17,6 +17,8 @@ const CURRENCY = 'PKR';
 const WORKSHOP_NAME = 'High-Ticket Sales Workshop';
 const WORKSHOP_DATE = '2026-10-25';
 const TEST_REGISTRATIONS = new Map();
+const TEST_PAYMENT_PROOFS = new Map();
+const TEST_TICKETS = new Map();
 
 function response(statusCode, body) {
   return {
@@ -101,8 +103,12 @@ const HIGHLEVEL_FIELD_NAMES = {
   amount_paid: 'amountPaid',
   payment_status: 'paymentStatus',
   payment_method: 'paymentMethod',
+  payment_proof_url: 'paymentProofUrl',
+  payment_proof_received_at: 'paymentProofReceivedAt',
   payfast_transaction_id: 'payfastTransactionId',
   verified_payment_timestamp: 'verifiedPaymentTimestamp',
+  ticket_id: 'ticketId',
+  ticket_url: 'ticketUrl',
   registration_status: 'registrationStatus',
   first_touch_source: 'firstTouchSource',
   first_touch_campaign: 'firstTouchCampaign',
@@ -148,6 +154,72 @@ async function saveRegistration(registrationId, record) {
 async function getRegistration(registrationId) {
   const store = await registrationStore();
   return store.get(`registrations/${registrationId}`, { type: 'json' });
+}
+
+async function paymentProofStore() {
+  if (process.env.WORKSHOP_REGISTRATION_STORE === 'memory') {
+    return {
+      setJSON: async (key, value) => TEST_PAYMENT_PROOFS.set(key, structuredClone(value)),
+      get: async key => TEST_PAYMENT_PROOFS.get(key) || null
+    };
+  }
+  const { getStore } = await import('@netlify/blobs');
+  return getStore('workshop-payment-proofs');
+}
+
+async function savePaymentProof(registrationId, record) {
+  const store = await paymentProofStore();
+  await store.setJSON(`proofs/${registrationId}`, record);
+}
+
+async function getPaymentProof(registrationId) {
+  const store = await paymentProofStore();
+  return store.get(`proofs/${registrationId}`, { type: 'json' });
+}
+
+async function ticketStore() {
+  if (process.env.WORKSHOP_REGISTRATION_STORE === 'memory') {
+    return {
+      setJSON: async (key, value, options = {}) => {
+        if (options.onlyIfNew && TEST_TICKETS.has(key)) return { modified: false };
+        TEST_TICKETS.set(key, structuredClone(value));
+        return { modified: true };
+      },
+      get: async key => TEST_TICKETS.get(key) || null
+    };
+  }
+  const { getStore } = await import('@netlify/blobs');
+  return getStore('workshop-tickets');
+}
+
+async function getTicket(registrationId) {
+  return (await ticketStore()).get(`tickets/${registrationId}`, { type: 'json' });
+}
+
+async function issueTicket(registration, verifiedPayment) {
+  const existing = await getTicket(registration.registration_id);
+  if (existing) return existing;
+  const attendanceCode = registration.attendance_type === 'online' ? 'ON' : 'KHI';
+  const ticketId = `VFL-25OCT-${attendanceCode}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+  const ticketToken = signRegistration({
+    purpose: 'workshop_ticket', ticket_id: ticketId, registration_id: registration.registration_id
+  }, process.env.WORKSHOP_SIGNING_SECRET || '');
+  const publicUrl = (process.env.WORKSHOP_PUBLIC_URL || 'https://workshop.revenueincarnate.com').replace(/\/$/, '');
+  const ticket = {
+    ticket_id: ticketId,
+    ticket_url: `${publicUrl}/.netlify/functions/workshop-ticket?token=${encodeURIComponent(ticketToken)}`,
+    registration_id: registration.registration_id,
+    first_name: registration.first_name,
+    last_name: registration.last_name,
+    email: registration.email,
+    attendance_type: registration.attendance_type,
+    status: 'active',
+    issued_at: new Date().toISOString(),
+    payment: verifiedPayment
+  };
+  const store = await ticketStore();
+  const saved = await store.setJSON(`tickets/${registration.registration_id}`, ticket, { onlyIfNew: true });
+  return saved.modified ? ticket : getTicket(registration.registration_id);
 }
 
 function signRegistration(payload, secret) {
@@ -223,7 +295,7 @@ async function postWebhook(envName, payload, fallbackName) {
 
 module.exports = {
   ADD_ON_AMOUNT, ATTRIBUTION_FIELDS, BASE_TICKET_AMOUNT, CURRENCY, WORKSHOP_DATE, WORKSHOP_NAME,
-  clean, getRegistration, headersFor, highLevelPayload, normalizeAttendance, normalizeAttribution, orderValues,
-  parseJson, postWebhook, requireSameOrigin, response, saveRegistration, signRegistration, verifyRegistration,
+  clean, getPaymentProof, getRegistration, getTicket, headersFor, highLevelPayload, issueTicket, normalizeAttendance, normalizeAttribution, orderValues,
+  parseJson, postWebhook, requireSameOrigin, response, savePaymentProof, saveRegistration, signRegistration, verifyRegistration,
   verifyTurnstile
 };
