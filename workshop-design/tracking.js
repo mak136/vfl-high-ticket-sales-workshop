@@ -10,7 +10,7 @@
     CHECKOUT_START_ENDPOINT: '/.netlify/functions/workshop-checkout',
     BANK_TRANSFER_ENDPOINT: '/.netlify/functions/workshop-bank-transfer',
     // Public site key only. Keep the matching secret in Netlify environment variables.
-    TURNSTILE_SITE_KEY: '',
+    TURNSTILE_SITE_KEY: '0x4AAAAAAFQ5i_2KJPBbJH-_',
     CHECKOUT_URL: '',
     PRODUCT_ID: 'high_ticket_sales_workshop',
     PRODUCT_NAME: 'High-Ticket Sales Workshop',
