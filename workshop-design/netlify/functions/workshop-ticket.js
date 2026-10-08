@@ -1,6 +1,6 @@
 'use strict';
 
-const { getTicket, verifyRegistration } = require('./workshop-shared.js');
+const { connectBlobs, getTicket, verifyRegistration } = require('./workshop-shared.js');
 
 function escapeHtml(value) {
   return String(value || '').replace(/[&<>"']/g, character => ({
@@ -27,6 +27,7 @@ exports.handler = async function handler(event) {
   const token = event.queryStringParameters && event.queryStringParameters.token;
   const signed = verifyRegistration(token, process.env.WORKSHOP_SIGNING_SECRET || '', 370 * 24 * 60 * 60 * 1000);
   if (!signed || signed.purpose !== 'workshop_ticket') return page(404, 'Ticket unavailable', '<p>This ticket link is invalid or expired.</p>');
+  await connectBlobs(event);
   const ticket = await getTicket(signed.registration_id);
   if (!ticket || ticket.ticket_id !== signed.ticket_id || ticket.status !== 'active') return page(404, 'Ticket unavailable', '<p>This ticket is not active.</p>');
   const attendee = `${ticket.first_name || ''} ${ticket.last_name || ''}`.trim();
