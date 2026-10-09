@@ -9,11 +9,16 @@ const analytics = window.workshopAnalytics || {
 };
 const WORKSHOP_CONFIG = Object.freeze({
   currency: TRACKING_CONFIG.CURRENCY || 'PKR',
-  basePrice: TRACKING_CONFIG.TICKET_PRICE || 5000
+  basePrice: TRACKING_CONFIG.TICKET_PRICE || 5000,
+  implementationPack: Object.freeze({
+    price: TRACKING_CONFIG.ORDER_BUMP_PRICE || 5000,
+    title: 'Add the Workshop Implementation Pack',
+    description: 'Add the working frameworks, worksheets, and post-workshop group implementation session.'
+  })
 });
 
 const money = value => `${WORKSHOP_CONFIG.currency} ${value.toLocaleString('en-PK')}`;
-const checkoutState = { format: 'online' };
+const checkoutState = { format: 'online', implementationPack: false };
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 
 const paymentReturn = new URLSearchParams(window.location.search).get('payment');
@@ -49,10 +54,12 @@ function formatName(format) {
 
 function updateCheckoutSummary() {
   const name = formatName(checkoutState.format);
+  const total = WORKSHOP_CONFIG.basePrice + (checkoutState.implementationPack ? WORKSHOP_CONFIG.implementationPack.price : 0);
   document.getElementById('order-format').textContent = `${name} · 1 attendee`;
   document.getElementById('preview-format').textContent = name;
-  document.getElementById('order-total').textContent = money(WORKSHOP_CONFIG.basePrice);
-  document.getElementById('payment-selection').textContent = `${name} · ${money(WORKSHOP_CONFIG.basePrice)}`;
+  document.getElementById('order-total').textContent = money(total);
+  document.getElementById('bank-transfer-amount').textContent = money(total);
+  document.getElementById('payment-selection').textContent = `${name} · ${checkoutState.implementationPack ? 'workshop + Implementation Pack' : 'workshop only'} · ${money(total)}`;
   document.getElementById('payment-preview').hidden = true;
   document.querySelectorAll('[data-format-select]').forEach(button => {
     button.setAttribute('aria-pressed', String(button.dataset.formatSelect === checkoutState.format));
@@ -79,18 +86,33 @@ function selectFormat(format) {
 document.querySelectorAll('input[name="format"]').forEach(input => input.addEventListener('change', () => selectFormat(input.value)));
 document.querySelectorAll('[data-format-select]').forEach(button => button.addEventListener('click', () => selectFormat(button.dataset.formatSelect)));
 
+const bump = document.getElementById('implementation-pack');
+document.getElementById('bump-title').textContent = WORKSHOP_CONFIG.implementationPack.title;
+document.getElementById('bump-description').textContent = WORKSHOP_CONFIG.implementationPack.description;
+bump.addEventListener('change', () => {
+  checkoutState.implementationPack = bump.checked;
+  updateCheckoutSummary();
+  acknowledgeSelection(bump.closest('.order-bump'));
+  if (bump.checked) analytics.trackEvent('order_bump_selected', {
+    bump_value: WORKSHOP_CONFIG.implementationPack.price,
+    currency: WORKSHOP_CONFIG.currency,
+    product: 'workshop_implementation_pack'
+  });
+});
+
 const attendeeStage = document.getElementById('attendee-stage');
 const checkoutStage = document.getElementById('checkout-stage');
 const seatForm = document.getElementById('seat-form');
 let contactSubmission = Promise.resolve({ ok: false });
 
 function currentOrder() {
+  const total = WORKSHOP_CONFIG.basePrice + (checkoutState.implementationPack ? WORKSHOP_CONFIG.implementationPack.price : 0);
   return {
     attendance_type: checkoutState.format,
     product: TRACKING_CONFIG.PRODUCT_ID || 'high_ticket_sales_workshop',
-    value: WORKSHOP_CONFIG.basePrice,
+    value: total,
     currency: WORKSHOP_CONFIG.currency,
-    order_bump: false
+    order_bump: checkoutState.implementationPack
   };
 }
 
@@ -232,6 +254,11 @@ seatForm.addEventListener('submit', async event => {
   registrationStatus.textContent = '';
   attendeeStage.hidden = true;
   checkoutStage.hidden = false;
+  analytics.oncePerSession('order_bump_viewed', 'order_bump_viewed', {
+    value: WORKSHOP_CONFIG.implementationPack.price,
+    currency: WORKSHOP_CONFIG.currency,
+    product: 'workshop_implementation_pack'
+  });
   playMotion(checkoutStage, [
     { opacity: .35, transform: 'translateY(10px)' },
     { opacity: 1, transform: 'translateY(0)' }
