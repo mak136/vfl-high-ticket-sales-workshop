@@ -8,6 +8,16 @@ const {
 
 const TEST_CLAIMS = new Map();
 
+function shortId(value) {
+  const text = String(value || '');
+  return text ? `…${text.slice(-8)}` : 'missing';
+}
+
+function callbackLog(level, event, details = {}) {
+  const safe = { event, ...details };
+  console[level](`[payfast-callback] ${JSON.stringify(safe)}`);
+}
+
 function parseCallback(event) {
   const raw = event.isBase64Encoded ? Buffer.from(event.body || '', 'base64').toString('utf8') : (event.body || '');
   if (Buffer.byteLength(raw, 'utf8') > 16000) throw Object.assign(new Error('Request is too large.'), { statusCode: 413 });
@@ -60,6 +70,7 @@ async function optionalWebhook(envName, payload) {
 
 exports.handler = async function handler(event) {
   if (!['GET', 'POST'].includes(event.httpMethod)) return response(405, { ok: false, error: 'Method not allowed.' });
+  const startedAt = Date.now();
   try {
     await connectBlobs(event);
     const data = parseCallback(event);
@@ -68,13 +79,18 @@ exports.handler = async function handler(event) {
     const errorCode = pick(data, 'err_code', 'ERR_CODE');
     const validationHash = pick(data, 'validation_hash', 'VALIDATION_HASH');
     if (!transactionId || !basketId || !errorCode || !validationHash) {
+      callbackLog('warn', 'rejected_missing_fields', { method: event.httpMethod });
       return response(400, { ok: false, error: 'Missing PayFast transaction data.' });
     }
     if (!validHash({ basketId, errorCode, suppliedHash: validationHash })) {
+      callbackLog('warn', 'rejected_invalid_hash', { basket: shortId(basketId), transaction: shortId(transactionId), errorCode });
       return response(400, { ok: false, error: 'PayFast validation hash did not match.' });
     }
     const registration = await getRegistration(basketId);
-    if (!registration) return response(400, { ok: false, error: 'Unknown PayFast basket ID.' });
+    if (!registration) {
+      callbackLog('warn', 'rejected_unknown_registration', { basket: shortId(basketId), transaction: shortId(transactionId) });
+      return response(400, { ok: false, error: 'Unknown PayFast basket ID.' });
+    }
 
     const amount = Number(pick(data, 'merchant_amount', 'MERCHANT_AMOUNT'));
     const currency = pick(data, 'transaction_currency', 'TRANSACTION_CURRENCY').toUpperCase();
@@ -95,16 +111,21 @@ exports.handler = async function handler(event) {
         payfast_error_message: pick(data, 'err_msg', 'ERR_MSG'), payment_failed_at: eventAt
       });
       await optionalWebhook('HIGHLEVEL_PAYMENT_FAILED_WEBHOOK_URL', highLevelPayload(failedPayload));
+      callbackLog('info', 'payment_failed', { basket: shortId(basketId), transaction: shortId(transactionId), errorCode, durationMs: Date.now() - startedAt });
       return response(200, { ok: true, paid: false });
     }
 
     if (!Number.isFinite(amount) || amount !== expectedAmount || currency !== 'PKR') {
+      callbackLog('warn', 'rejected_amount_or_currency', { basket: shortId(basketId), transaction: shortId(transactionId), currency });
       return response(400, { ok: false, error: 'PayFast amount or currency did not match the order.' });
     }
     const claimed = await claimTransaction(transactionId, {
       transaction_id: transactionId, registration_id: basketId, amount, verified_at: eventAt
     });
-    if (!claimed.modified) return response(200, { ok: true, paid: true, duplicate: true });
+    if (!claimed.modified) {
+      callbackLog('info', 'duplicate_payment', { basket: shortId(basketId), transaction: shortId(transactionId), durationMs: Date.now() - startedAt });
+      return response(200, { ok: true, paid: true, duplicate: true });
+    }
     try {
       const payment = {
         transaction_id: transactionId, amount_paid: amount, currency: 'PKR',
@@ -132,8 +153,10 @@ exports.handler = async function handler(event) {
       await releaseTransaction(transactionId);
       throw error;
     }
+    callbackLog('info', 'payment_verified', { basket: shortId(basketId), transaction: shortId(transactionId), durationMs: Date.now() - startedAt });
     return response(200, { ok: true, paid: true, duplicate: false });
   } catch (error) {
+    callbackLog('error', 'processing_error', { statusCode: error.statusCode || 502, durationMs: Date.now() - startedAt });
     return response(error.statusCode || 502, {
       ok: false, error: error.statusCode ? error.message : 'Payment verification failed.'
     });
