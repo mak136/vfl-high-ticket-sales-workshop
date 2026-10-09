@@ -8,10 +8,10 @@
     // Same-origin proxy. The HighLevel webhook URL stays in Netlify environment variables.
     HIGHLEVEL_WEBHOOK_OR_FORM_ENDPOINT: '/.netlify/functions/workshop-contact',
     CHECKOUT_START_ENDPOINT: '/.netlify/functions/workshop-checkout',
+    PAYFAST_START_ENDPOINT: '/.netlify/functions/workshop-payfast-start',
     BANK_TRANSFER_ENDPOINT: '/.netlify/functions/workshop-bank-transfer',
     // Public site key only. Keep the matching secret in Netlify environment variables.
     TURNSTILE_SITE_KEY: '0x4AAAAAAFQ5i_2KJPBbJH-_',
-    CHECKOUT_URL: '',
     BANK_TRANSFER_READY: false,
     BANK_NAME: 'JS Bank',
     BANK_ACCOUNT_TITLE: 'Revenue Incarnate',

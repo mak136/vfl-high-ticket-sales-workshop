@@ -16,6 +16,17 @@ const money = value => `${WORKSHOP_CONFIG.currency} ${value.toLocaleString('en-P
 const checkoutState = { format: 'online' };
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 
+const paymentReturn = new URLSearchParams(window.location.search).get('payment');
+if (paymentReturn === 'success' || paymentReturn === 'failed') {
+  const notice = document.createElement('div');
+  notice.className = `payment-return payment-return--${paymentReturn}`;
+  notice.setAttribute('role', 'status');
+  notice.innerHTML = paymentReturn === 'success'
+    ? '<strong>Payment submitted.</strong><span>We are verifying it securely. Your ticket will arrive by email after confirmation.</span>'
+    : '<strong>Payment was not completed.</strong><span>Your registration is saved. You can return to payment and try again.</span>';
+  document.body.prepend(notice);
+}
+
 function playMotion(element, keyframes, options = {}) {
   if (!element || motionPreference.matches || typeof element.animate !== 'function') return;
   element.animate(keyframes, {
@@ -241,21 +252,39 @@ document.getElementById('edit-details').addEventListener('click', () => {
 
 document.getElementById('payment-button').addEventListener('click', async () => {
   const button = document.getElementById('payment-button');
-  const checkoutUrl = TRACKING_CONFIG.CHECKOUT_URL;
   const registration = await recordCheckout(button);
   if (!registration) return;
   const order = currentOrder();
   analytics.trackEvent('checkout_started', order);
-  if (checkoutUrl) {
-    window.location.assign(analytics.checkoutUrl(checkoutUrl, order));
-    return;
+  const disclosure = document.getElementById('checkout-disclosure');
+  disclosure.textContent = 'Opening secure PayFast checkout…';
+  try {
+    const result = await fetch(TRACKING_CONFIG.PAYFAST_START_ENDPOINT || '/.netlify/functions/workshop-payfast-start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ registration_token: registration.registrationToken })
+    });
+    const payload = await result.json();
+    if (!result.ok || !payload.ok || !payload.form_url || !payload.fields) throw new Error(payload.error || 'PayFast checkout is unavailable.');
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = payload.form_url;
+    form.hidden = true;
+    for (const [name, value] of Object.entries(payload.fields)) {
+      if (value === undefined || value === null || value === '') continue;
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = String(value);
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  } catch (error) {
+    button.disabled = false;
+    disclosure.textContent = error.message || 'Online payment is temporarily unavailable. You can use bank transfer or try again.';
   }
-  button.disabled = false;
-  const preview = document.getElementById('payment-preview');
-  preview.hidden = false;
-  preview.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'nearest' });
-  // Payment provider integration point:
-  // send the attendee details and checkoutState to the PayFast endpoint here.
 });
 
 const bankPanel = document.getElementById('bank-transfer-panel');

@@ -7,9 +7,10 @@ The custom landing-page form stays in place. HighLevel forms are not embedded. B
 1. `tracking.js` sends the submitted attendee form to `/.netlify/functions/workshop-contact`.
 2. `workshop-contact.js` verifies Cloudflare Turnstile, normalizes `karachi` to `onsite`, creates a unique registration ID, sends the lead to the HighLevel registration workflow, and returns a signed registration session to the browser.
 3. When the visitor presses **Continue to Payment**, `app.js` sends only the signed session and order choices to `/.netlify/functions/workshop-checkout`. The server recalculates PKR 5,000 or PKR 10,000 and calls the HighLevel checkout-start workflow. This endpoint never marks a registration paid.
-4. PayFast calls `/.netlify/functions/workshop-payfast-callback` server-to-server. The function obtains a PayFast access token, reads the transaction back from PayFast, checks its status, basket/registration ID, and amount, and atomically claims the transaction ID in Netlify Blobs. Only then does it create the signed attendee ticket and call the HighLevel paid workflow. Repeated callbacks return success without issuing another ticket or paid event.
-5. The bank-transfer panel submits its signed registration session and compressed payment screenshot to `/.netlify/functions/workshop-bank-transfer`. The screenshot is stored privately in Netlify Blobs. HighLevel receives a signed proof link, moves the registration to **Payment Pending**, and leaves payment status **Unpaid**.
-6. After a person verifies the bank transfer, HighLevel calls `/.netlify/functions/workshop-bank-verify` with the registration ID and a private bearer secret. This creates the same signed ticket and calls the same paid workflow used by PayFast. The ticket can be opened at its private `ticketUrl`; a made-up ticket ID without a valid signed link is rejected.
+4. `workshop-payfast-start.js` requests a short-lived access token using server-only PayFast credentials and returns the documented hosted-form fields. The browser posts those fields to PayFast; it never receives the secured key.
+5. PayFast calls `/.netlify/functions/workshop-payfast-callback` server-to-server by GET or POST. The function recalculates SHA-256 over `basket_id|secured_key|merchant_id|err_code`, compares the hash in constant time, and checks the stored basket, merchant amount, PKR currency, success code `000`, and transaction ID. Only then does it claim the transaction in Netlify Blobs, create the signed ticket, and call the HighLevel paid workflow. Repeated callbacks return HTTP 200 without issuing another ticket or paid event.
+6. The bank-transfer panel submits its signed registration session and compressed payment screenshot to `/.netlify/functions/workshop-bank-transfer`. The screenshot is stored privately in Netlify Blobs. HighLevel receives a signed proof link, moves the registration to **Payment Pending**, and leaves payment status **Unpaid**.
+7. After a person verifies the bank transfer, HighLevel calls `/.netlify/functions/workshop-bank-verify` with the registration ID and a private bearer secret. This creates the same signed ticket and calls the same paid workflow used by PayFast. The ticket can be opened at its private `ticketUrl`; a made-up ticket ID without a valid signed link is rejected.
 
 ## Browser configuration
 
@@ -17,7 +18,6 @@ The single `CONFIG` object at the top of `tracking.js` contains public values on
 
 - `META_PIXEL_ID`, `GA4_MEASUREMENT_ID`, or `GTM_CONTAINER_ID`
 - `TURNSTILE_SITE_KEY` — public site key only
-- `CHECKOUT_URL` — public PayFast hosted-checkout/payment-link URL when supplied by PayFast
 - `BANK_TRANSFER_READY` — keep `false` until the real bank details have replaced every placeholder
 - `BANK_NAME`, `BANK_ACCOUNT_TITLE`, `BANK_IBAN`, and `BANK_ACCOUNT_NUMBER` — public receiving details shown to the attendee
 - Product, workshop date, PKR prices, and same-origin function paths
@@ -38,14 +38,15 @@ Set these for the production deploy:
 | `HIGHLEVEL_CHECKOUT_WEBHOOK_URL` | HighLevel workflow 2 inbound webhook |
 | `HIGHLEVEL_PAID_WEBHOOK_URL` | HighLevel workflow 4 inbound webhook |
 | `HIGHLEVEL_BANK_TRANSFER_WEBHOOK_URL` | HighLevel workflow 5 inbound webhook |
-| `PAYFAST_API_BASE_URL` | PayFast production API base URL supplied for the merchant account |
+| `PAYFAST_MODE` | `uat` while testing; change to `live` only after PayFast issues production credentials |
 | `PAYFAST_MERCHANT_ID` | PayFast merchant ID |
 | `PAYFAST_SECURED_KEY` | PayFast secured key |
-| `PAYFAST_SUCCESS_CODES` | Optional comma-separated success codes; defaults to `00,79` and must be confirmed against the merchant integration pack |
+| `PAYFAST_MERCHANT_NAME` | Name displayed at PayFast; normally `Revenue Incarnate` |
+| `HIGHLEVEL_PAYMENT_FAILED_WEBHOOK_URL` | Optional HighLevel webhook that moves a valid failed payment to **Payment Failed** |
 
 `HIGHLEVEL_WEBHOOK_OR_FORM_ENDPOINT` remains supported as a temporary fallback for the registration workflow only.
 
-Netlify Blobs is used for durable PayFast transaction idempotency. The dependency is declared in `package.json`; deploy/install dependencies before enabling the callback.
+The checkout callback is `https://workshop.revenueincarnate.com/.netlify/functions/workshop-payfast-callback`. Success and failure redirects are informational only; they never mark an order paid. Netlify Blobs provides durable transaction idempotency.
 
 ## HighLevel workflow mapping
 

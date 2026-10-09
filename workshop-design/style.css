@@ -576,6 +576,8 @@
   .after-payment li:nth-child(3){display:flex}
   .registration-copy>p.registration-policy{display:block}
 }
+.payment-return{position:relative;z-index:1000;display:flex;justify-content:center;gap:10px;padding:12px 24px;background:#e1e2d8;color:#171815;border-bottom:1px solid #616356;font-size:13px;text-align:center}.payment-return--failed{background:#fb8b50}.payment-return span{color:#515547}
+@media(max-width:600px){.payment-return{flex-direction:column;gap:3px;padding:11px 18px;font-size:12px}}
 @media(max-width:360px){
   .hero h1{font-size:41px}
   .method-proof{grid-template-columns:1fr}
