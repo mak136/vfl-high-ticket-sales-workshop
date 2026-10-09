@@ -362,10 +362,7 @@ proofSubmit.addEventListener('click', async () => {
     const proof = await imageProof(proofInput.files[0]);
     const result = await analytics.submitBankTransfer(registration, currentOrder(), proof);
     if (!result.ok) throw new Error('Your payment proof could not be submitted. Please try again.');
-    bankStatus.textContent = `Payment proof received for ${result.registrationId}. Verification can take up to 24 hours.`;
-    proofInput.disabled = true;
-    proofSubmit.hidden = true;
-    document.getElementById('edit-details').hidden = true;
+    window.location.assign(`/thank-you/?payment=bank-pending&basket_id=${encodeURIComponent(result.registrationId)}`);
   } catch (error) {
     proofSubmit.disabled = false;
     bankStatus.textContent = error.message || 'Your payment proof could not be submitted. Please try again.';

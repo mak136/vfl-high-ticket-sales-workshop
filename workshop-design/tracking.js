@@ -2,7 +2,7 @@
   'use strict';
 
   const CONFIG = Object.freeze({
-    META_PIXEL_ID: '',
+    META_PIXEL_ID: '2114875266078656',
     GA4_MEASUREMENT_ID: '',
     GTM_CONTAINER_ID: '',
     // Same-origin proxy. The HighLevel webhook URL stays in Netlify environment variables.
@@ -224,7 +224,8 @@
           }
           if (typeof browser.fbq === 'function' && config.META_PIXEL_ID) {
             const standard = eventName === 'checkout_started' ? 'InitiateCheckout' :
-              eventName === 'contact_submitted' ? 'Lead' : null;
+              eventName === 'contact_submitted' ? 'CompleteRegistration' :
+              eventName === 'payment_instructions_viewed' ? 'AddPaymentInfo' : null;
             if (standard) browser.fbq('track', standard, payload);
             else browser.fbq('trackCustom', eventName, payload);
           }
@@ -269,6 +270,12 @@
           return { ok: false, error: message || 'We could not save your registration. Please try again.' };
         }
         const result = await response.json();
+        try {
+          if (browser && browser.sessionStorage) browser.sessionStorage.setItem('ri_workshop_registration', JSON.stringify({
+            registrationId: result.registration_id,
+            registrationToken: result.registration_token
+          }));
+        } catch (_) { /* Storage can be unavailable. */ }
         if (trackSubmission) trackEvent('contact_submitted', { product: config.PRODUCT_ID });
         return { ok: true, registrationId: result.registration_id, registrationToken: result.registration_token };
       } catch (_) { return { ok: false, error: 'Registration is temporarily unavailable. Please try again.' }; }
