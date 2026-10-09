@@ -7,9 +7,11 @@
   const els = Object.fromEntries(['result-kicker','result-title','result-summary','registration-id','amount-row','amount-paid','attendance-row','attendance-type','ticket-row','ticket-id','primary-action','fine-print'].map(id => [id, document.getElementById(id)]));
 
   window.fbq = window.fbq || function () { (window.fbq.q = window.fbq.q || []).push(arguments); };
-  window.fbq.loaded = true; window.fbq.version = '2.0';
-  const pixel = document.createElement('script'); pixel.async = true; pixel.src = 'https://connect.facebook.net/en_US/fbevents.js'; document.head.appendChild(pixel);
-  window.fbq('init', PIXEL_ID); window.fbq('track', 'PageView');
+  if (!window.fbq.loaded) {
+    window.fbq.loaded = true; window.fbq.version = '2.0';
+    const pixel = document.createElement('script'); pixel.async = true; pixel.src = 'https://connect.facebook.net/en_US/fbevents.js'; document.head.appendChild(pixel);
+    window.fbq('init', PIXEL_ID); window.fbq('track', 'PageView');
+  }
 
   function setState(state, data = {}) {
     document.body.dataset.state = state;
@@ -70,3 +72,4 @@
   else if (requestedState === 'bank-pending') setState('pending');
   else { setState('verifying'); verifyPayment(); }
 }());
+
