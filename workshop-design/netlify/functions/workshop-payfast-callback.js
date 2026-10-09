@@ -1,84 +1,114 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const {
-  WORKSHOP_DATE, WORKSHOP_NAME, connectBlobs, getRegistration, headersFor, highLevelPayload, issueTicket, postWebhook, response, saveRegistration
+  WORKSHOP_DATE, WORKSHOP_NAME, connectBlobs, getRegistration, highLevelPayload,
+  issueTicket, postWebhook, response, saveRegistration
 } = require('./workshop-shared.js');
 
+const TEST_CLAIMS = new Map();
+
 function parseCallback(event) {
-  const contentType = headersFor(event)['content-type'] || '';
   const raw = event.isBase64Encoded ? Buffer.from(event.body || '', 'base64').toString('utf8') : (event.body || '');
   if (Buffer.byteLength(raw, 'utf8') > 16000) throw Object.assign(new Error('Request is too large.'), { statusCode: 413 });
-  if (/application\/json/i.test(contentType)) return JSON.parse(raw);
-  return Object.fromEntries(new URLSearchParams(raw));
+  const query = new URLSearchParams(event.rawQuery || '');
+  for (const [key, value] of Object.entries(event.queryStringParameters || {})) {
+    if (value !== undefined && value !== null) query.set(key, value);
+  }
+  const body = new URLSearchParams(raw);
+  for (const [key, value] of body) query.set(key, value);
+  return Object.fromEntries(query);
 }
 
 function pick(data, ...keys) {
-  for (const key of keys) if (data[key] !== undefined && data[key] !== null && String(data[key]).trim()) return String(data[key]).trim();
+  for (const key of keys) {
+    if (data[key] !== undefined && data[key] !== null && String(data[key]).trim()) return String(data[key]).trim();
+  }
   return '';
 }
 
-async function payfastAccessToken(customerIp) {
-  const base = process.env.PAYFAST_API_BASE_URL;
-  const merchantId = process.env.PAYFAST_MERCHANT_ID;
-  const securedKey = process.env.PAYFAST_SECURED_KEY;
-  if (!base || !merchantId || !securedKey) throw Object.assign(new Error('PayFast verification is not configured.'), { statusCode: 503 });
-  const result = await fetch(`${base.replace(/\/$/, '')}/token`, {
-    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
-    body: new URLSearchParams({ merchant_id: merchantId, secured_key: securedKey, grant_type: 'client_credentials', customer_ip: customerIp || '127.0.0.1' })
-  });
-  if (!result.ok) throw Object.assign(new Error('PayFast token verification failed.'), { statusCode: 502 });
-  const body = await result.json();
-  const token = body.token || body.access_token;
-  if (!token) throw Object.assign(new Error('PayFast did not return a verification token.'), { statusCode: 502 });
-  return { base: base.replace(/\/$/, ''), token };
-}
-
-async function verifyPayfastTransaction(transactionId, customerIp) {
-  const { base, token } = await payfastAccessToken(customerIp);
-  const result = await fetch(`${base}/transaction/${encodeURIComponent(transactionId)}`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
-  });
-  if (!result.ok) throw Object.assign(new Error('PayFast transaction verification failed.'), { statusCode: 502 });
-  return result.json();
+function validHash({ basketId, errorCode, suppliedHash }) {
+  const merchantId = process.env.PAYFAST_MERCHANT_ID || '';
+  const securedKey = process.env.PAYFAST_SECURED_KEY || '';
+  if (!merchantId || !securedKey || !/^[a-f0-9]{64}$/i.test(suppliedHash)) return false;
+  const expected = crypto.createHash('sha256')
+    .update(`${basketId}|${securedKey}|${merchantId}|${errorCode}`, 'utf8')
+    .digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(suppliedHash.toLowerCase(), 'hex'));
 }
 
 async function claimTransaction(transactionId, record) {
+  if (process.env.WORKSHOP_REGISTRATION_STORE === 'memory') {
+    if (TEST_CLAIMS.has(transactionId)) return { modified: false };
+    TEST_CLAIMS.set(transactionId, record);
+    return { modified: true };
+  }
   const { getStore } = await import('@netlify/blobs');
-  const store = getStore('workshop-payments');
-  return store.setJSON(`payfast/${transactionId}`, record, { onlyIfNew: true });
+  return getStore('workshop-payments').setJSON(`payfast/${transactionId}`, record, { onlyIfNew: true });
 }
 
 async function releaseTransaction(transactionId) {
+  if (process.env.WORKSHOP_REGISTRATION_STORE === 'memory') return TEST_CLAIMS.delete(transactionId);
   const { getStore } = await import('@netlify/blobs');
-  await getStore('workshop-payments').delete(`payfast/${transactionId}`);
+  return getStore('workshop-payments').delete(`payfast/${transactionId}`);
+}
+
+async function optionalWebhook(envName, payload) {
+  if (!process.env[envName]) return;
+  await postWebhook(envName, payload);
 }
 
 exports.handler = async function handler(event) {
-  if (event.httpMethod !== 'POST') return response(405, { ok: false, error: 'Method not allowed.' });
+  if (!['GET', 'POST'].includes(event.httpMethod)) return response(405, { ok: false, error: 'Method not allowed.' });
   try {
     await connectBlobs(event);
     const data = parseCallback(event);
     const transactionId = pick(data, 'transaction_id', 'TRANSACTION_ID');
-    const callbackBasketId = pick(data, 'basket_id', 'BASKET_ID');
-    if (!transactionId || !callbackBasketId) return response(400, { ok: false, error: 'Missing PayFast transaction data.' });
-    const headers = headersFor(event);
-    const verified = await verifyPayfastTransaction(transactionId, headers['x-nf-client-connection-ip'] || '');
-    const statusCode = pick(verified, 'status_code', 'code');
-    const successCodes = new Set((process.env.PAYFAST_SUCCESS_CODES || '00,79').split(',').map(value => value.trim()));
-    const basketId = pick(verified, 'basket_id', 'BASKET_ID');
-    const amount = Number(pick(verified, 'txnamt', 'amount', 'TXNAMT'));
-    const registration = await getRegistration(basketId);
-    if (!registration || !successCodes.has(statusCode) || basketId !== callbackBasketId || amount !== registration.total_order_value) {
-      return response(400, { ok: false, error: 'PayFast transaction did not pass server verification.' });
+    const basketId = pick(data, 'basket_id', 'BASKET_ID');
+    const errorCode = pick(data, 'err_code', 'ERR_CODE');
+    const validationHash = pick(data, 'validation_hash', 'VALIDATION_HASH');
+    if (!transactionId || !basketId || !errorCode || !validationHash) {
+      return response(400, { ok: false, error: 'Missing PayFast transaction data.' });
     }
-    const verifiedAt = new Date().toISOString();
-    const claimed = await claimTransaction(transactionId, { transaction_id: transactionId, registration_id: basketId, amount, verified_at: verifiedAt });
-    if (!claimed.modified) return response(200, { ok: true, duplicate: true });
+    if (!validHash({ basketId, errorCode, suppliedHash: validationHash })) {
+      return response(400, { ok: false, error: 'PayFast validation hash did not match.' });
+    }
+    const registration = await getRegistration(basketId);
+    if (!registration) return response(400, { ok: false, error: 'Unknown PayFast basket ID.' });
+
+    const amount = Number(pick(data, 'merchant_amount', 'MERCHANT_AMOUNT'));
+    const currency = pick(data, 'transaction_currency', 'TRANSACTION_CURRENCY').toUpperCase();
+    const paymentMethod = pick(data, 'PaymentName', 'payment_name') || 'PayFast';
+    const expectedAmount = Number(registration.total_order_value);
+    const eventAt = new Date().toISOString();
+
+    if (errorCode !== '000') {
+      const failedPayload = {
+        event_type: 'payment_failed', registration_id: basketId,
+        email: registration.email, phone: registration.phone,
+        payfast_transaction_id: transactionId, amount_paid: 0,
+        total_order_value: expectedAmount, currency: 'PKR', payment_status: 'Failed',
+        payment_method: paymentMethod, registration_status: 'Payment Failed'
+      };
+      await saveRegistration(basketId, {
+        ...registration, ...failedPayload, payfast_error_code: errorCode,
+        payfast_error_message: pick(data, 'err_msg', 'ERR_MSG'), payment_failed_at: eventAt
+      });
+      await optionalWebhook('HIGHLEVEL_PAYMENT_FAILED_WEBHOOK_URL', highLevelPayload(failedPayload));
+      return response(200, { ok: true, paid: false });
+    }
+
+    if (!Number.isFinite(amount) || amount !== expectedAmount || currency !== 'PKR') {
+      return response(400, { ok: false, error: 'PayFast amount or currency did not match the order.' });
+    }
+    const claimed = await claimTransaction(transactionId, {
+      transaction_id: transactionId, registration_id: basketId, amount, verified_at: eventAt
+    });
+    if (!claimed.modified) return response(200, { ok: true, paid: true, duplicate: true });
     try {
       const payment = {
         transaction_id: transactionId, amount_paid: amount, currency: 'PKR',
-        payment_method: pick(verified, 'payment_method', 'account_type', 'instrument_type') || 'payfast',
-        verified_at: verifiedAt
+        payment_method: paymentMethod, verified_at: eventAt
       };
       const ticket = await issueTicket(registration, payment);
       const paidPayload = {
@@ -91,11 +121,10 @@ exports.handler = async function handler(event) {
         ticket_type: registration.ticket_type,
         base_ticket_amount: registration.base_ticket_amount,
         add_on_selected: registration.add_on_selected,
-        payfast_transaction_id: transactionId, amount_paid: amount, total_order_value: amount,
-        currency: 'PKR', payment_status: 'Paid',
-        payment_method: payment.payment_method,
-        verified_payment_timestamp: verifiedAt, registration_status: 'Paid / Registered',
-        ticket_id: ticket.ticket_id, ticket_url: ticket.ticket_url
+        payfast_transaction_id: transactionId, amount_paid: amount,
+        total_order_value: expectedAmount, currency: 'PKR', payment_status: 'Paid',
+        payment_method: paymentMethod, verified_payment_timestamp: eventAt,
+        registration_status: 'Paid / Registered', ticket_id: ticket.ticket_id, ticket_url: ticket.ticket_url
       };
       await postWebhook('HIGHLEVEL_PAID_WEBHOOK_URL', highLevelPayload(paidPayload));
       await saveRegistration(basketId, { ...registration, ...paidPayload });
@@ -103,8 +132,10 @@ exports.handler = async function handler(event) {
       await releaseTransaction(transactionId);
       throw error;
     }
-    return response(200, { ok: true, duplicate: false });
+    return response(200, { ok: true, paid: true, duplicate: false });
   } catch (error) {
-    return response(error.statusCode || 502, { ok: false, error: error.statusCode ? error.message : 'Payment verification failed.' });
+    return response(error.statusCode || 502, {
+      ok: false, error: error.statusCode ? error.message : 'Payment verification failed.'
+    });
   }
 };
