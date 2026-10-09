@@ -120,14 +120,18 @@ test('analytics events strip PII and server-only payment events cannot fire in t
 test('contact submission posts PII only to the CRM proxy and fires contact_submitted after success', async () => {
   const browser = browserFor('?utm_source=community&utm_medium=whatsapp');
   let sent;
-  browser.fetch = async (_url, options) => { sent = JSON.parse(options.body); return { ok: true }; };
+  browser.fetch = async (_url, options) => {
+    sent = JSON.parse(options.body);
+    return { ok: true, json: async () => ({ registration_id: 'WS-1', registration_token: 'signed.token' }) };
+  };
   const tracker = createTracker({
     window: browser,
     document: { referrer: '' },
     config: { ...require('../tracking.js').CONFIG, HIGHLEVEL_WEBHOOK_OR_FORM_ENDPOINT: '/.netlify/functions/workshop-contact' }
   });
   const ok = await tracker.submitContact({ full_name: 'Test Person', first_name: 'Test', last_name: 'Person', email: 'test@example.com', phone: '03001234567', attendance_type: 'online' });
-  assert.equal(ok, true);
+  assert.equal(ok.ok, true);
+  assert.equal(ok.registrationId, 'WS-1');
   assert.equal(sent.email, 'test@example.com');
   assert.equal(sent.attribution.utm_source, 'community');
   assert.equal(browser.dataLayer.at(-1).event, 'contact_submitted');
@@ -142,8 +146,33 @@ test('contact endpoint failure is non-blocking and does not count as submitted',
     config: { ...require('../tracking.js').CONFIG, HIGHLEVEL_WEBHOOK_OR_FORM_ENDPOINT: '/.netlify/functions/workshop-contact' }
   });
   const ok = await tracker.submitContact({ first_name: 'Test', email: 'test@example.com', phone: '03001234567', attendance_type: 'online' });
-  assert.equal(ok, false);
+  assert.equal(ok.ok, false);
   assert.equal(browser.dataLayer.some(event => event.event === 'contact_submitted'), false);
+});
+
+test('manual bank transfer sends proof only to the same-origin server endpoint', async () => {
+  const browser = browserFor();
+  let sent;
+  browser.fetch = async (url, options) => {
+    sent = { url, body: JSON.parse(options.body) };
+    return { ok: true, json: async () => ({ registration_id: 'WS-1', payment_status: 'Unpaid' }) };
+  };
+  const tracker = createTracker({
+    window: browser,
+    document: { referrer: '' },
+    config: { ...require('../tracking.js').CONFIG, BANK_TRANSFER_ENDPOINT: '/.netlify/functions/workshop-bank-transfer' }
+  });
+  const result = await tracker.submitBankTransfer(
+    { registrationToken: 'signed.token' },
+    { attendance_type: 'online', order_bump: false, value: 5000, currency: 'PKR' },
+    { mime_type: 'image/jpeg', data: 'cHJvb2Y=', original_name: 'receipt.jpg' }
+  );
+  assert.equal(result.ok, true);
+  assert.equal(sent.url, '/.netlify/functions/workshop-bank-transfer');
+  assert.equal(sent.body.registration_token, 'signed.token');
+  assert.equal(sent.body.payment_proof.data, 'cHJvb2Y=');
+  assert.equal(browser.dataLayer.at(-1).event, 'payment_proof_submitted');
+  assert.equal('payment_proof' in browser.dataLayer.at(-1), false);
 });
 
 test('order-bump and manual-payment events are trackable; purchase remains server-only', () => {
