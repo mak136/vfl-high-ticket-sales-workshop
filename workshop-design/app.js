@@ -329,6 +329,8 @@ document.getElementById('bank-name').textContent = TRACKING_CONFIG.BANK_NAME || 
 document.getElementById('bank-account-title').textContent = TRACKING_CONFIG.BANK_ACCOUNT_TITLE || 'Revenue Incarnate';
 document.getElementById('bank-iban').textContent = TRACKING_CONFIG.BANK_IBAN || 'To be added';
 document.getElementById('bank-account-number').textContent = TRACKING_CONFIG.BANK_ACCOUNT_NUMBER || 'To be added';
+document.getElementById('bank-branch').textContent = TRACKING_CONFIG.BANK_BRANCH || 'Khadda Market Branch';
+document.getElementById('bank-branch-code').textContent = TRACKING_CONFIG.BANK_BRANCH_CODE || '9132';
 proofInput.disabled = !bankReady;
 
 bankButton.addEventListener('click', async () => {

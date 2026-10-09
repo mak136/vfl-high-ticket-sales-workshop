@@ -18,11 +18,11 @@ The single `CONFIG` object at the top of `tracking.js` contains public values on
 
 - `META_PIXEL_ID`, `GA4_MEASUREMENT_ID`, or `GTM_CONTAINER_ID`
 - `TURNSTILE_SITE_KEY` — public site key only
-- `BANK_TRANSFER_READY` — keep `false` until the real bank details have replaced every placeholder
-- `BANK_NAME`, `BANK_ACCOUNT_TITLE`, `BANK_IBAN`, and `BANK_ACCOUNT_NUMBER` — public receiving details shown to the attendee
+- `BANK_TRANSFER_READY` — enables the manual bank-transfer option after the receiving details are confirmed
+- `BANK_NAME`, `BANK_ACCOUNT_TITLE`, `BANK_IBAN`, `BANK_ACCOUNT_NUMBER`, `BANK_BRANCH`, and `BANK_BRANCH_CODE` — public receiving details shown to the attendee
 - Product, workshop date, PKR prices, and same-origin function paths
 
-Do not put webhook URLs, API keys, PayFast merchant credentials, bank details, or signing secrets in `tracking.js`, `app.js`, HTML, or GitHub.
+Do not put webhook URLs, API keys, PayFast secured keys, or signing secrets in `tracking.js`, `app.js`, HTML, or GitHub. The receiving bank details displayed to attendees are public payment instructions.
 
 ## Netlify environment variables
 
@@ -131,4 +131,4 @@ Run:
 npm test
 ```
 
-Before opening bank transfer, replace the placeholder bank details in `tracking.js`, set `BANK_TRANSFER_READY` to `true`, and submit a real low-value proof through the complete workflow. Test a registration, checkout start, failed/abandoned checkout, verified PayFast callback, repeated callback, and manual bank-transfer verification in sandbox/test mode before enabling live payment. Confirm that one registration ID produces one opportunity, one ticket, and one confirmation.
+Before opening bank transfer, confirm the public bank details in `tracking.js`, set `BANK_TRANSFER_READY` to `true`, and submit a real low-value proof through the complete workflow. Test a registration, checkout start, failed/abandoned checkout, verified PayFast callback, repeated callback, and manual bank-transfer verification in sandbox/test mode before enabling live payment. Confirm that one registration ID produces one opportunity, one ticket, and one confirmation.
