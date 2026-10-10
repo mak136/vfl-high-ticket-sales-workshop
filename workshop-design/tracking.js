@@ -11,7 +11,8 @@
     PAYFAST_START_ENDPOINT: '/.netlify/functions/workshop-payfast-start',
     BANK_TRANSFER_ENDPOINT: '/.netlify/functions/workshop-bank-transfer',
     // Public site key only. Keep the matching secret in Netlify environment variables.
-    TURNSTILE_SITE_KEY: '0x4AAAAAAFQ5i_2KJPBbJH-_',
+    // Temporarily disabled for the bank-transfer submission test.
+    TURNSTILE_SITE_KEY: '',
     BANK_TRANSFER_READY: true,
     BANK_NAME: 'JS Bank',
     BANK_ACCOUNT_TITLE: 'Revenue Incarnate',
