@@ -3,7 +3,7 @@
 const crypto = require('node:crypto');
 const {
   CURRENCY, WORKSHOP_DATE, WORKSHOP_NAME, clean, connectBlobs, highLevelPayload, normalizeAttendance, normalizeAttribution,
-  orderValues, parseJson, postWebhook, requireSameOrigin, response, saveRegistration, signRegistration, verifyTurnstile
+  orderValues, parseJson, postWebhook, requireSameOrigin, response, saveRegistration, signRegistration
 } = require('./workshop-shared.js');
 
 exports.handler = async function handler(event) {
@@ -15,8 +15,8 @@ exports.handler = async function handler(event) {
   let phase = 'request_validation';
   try {
     const data = parseJson(event);
-    phase = 'turnstile_verification';
-    await verifyTurnstile(clean(data.turnstile_token, 2048), event);
+    // Temporarily disabled with the browser widget for bank-transfer testing.
+    // Restore verifyTurnstile and TURNSTILE_SITE_KEY after the test.
     const email = clean(data.email, 254).toLowerCase();
     const phone = clean(data.phone, 40);
     const firstName = clean(data.first_name, 80);
